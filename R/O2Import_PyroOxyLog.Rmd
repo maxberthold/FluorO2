@@ -1,0 +1,190 @@
+---
+title: "O2ImportTidy"
+author:
+
+- Douglas A. Campbell
+- Maximilian Berthold
+- Laurel Genge
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    keep_md: yes
+    fig_caption: yes
+    toc: TRUE
+    toc_float: TRUE
+csl: plos-one.csl
+---
+
+##Introduction
+We use an optode to measure [O2] µmol l-1 in suspensions of phytoplankton.
+Changes in [O2] reflect (hopefully) oxygen evolution or oxygen consumption by the cell suspension.
+
+## Materials and Methods
+
+This .Rmd Rworkbook imports data in simple .csv form exported from FireSting optodes based upon project specific values for variables set by the user.
+
+It tidies and organizes the data.
+
+To-Do list:
+
+variable name is in two rows, need to find a way to make variable name in two rows into one row.
+Need to match the tube number from file name with Ch1O2 etc... 
+Need to match each run with date from catalog
+create preiminary graphs
+
+#Priority List
+-single data file import for O2
+-multi-file batch data import (may not be fully feasible given we need match multiple files together in some cases)
+-O2 preliminary plots
+-merge O2 plots as over-lays of growth plots (time axis may be tricky but I think I know how)
+
+# Set Chunk Options
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+knitr::opts_chunk$set(fig.path='Figs/')
+```
+
+```{r set project variables}
+#"..", takes up a level in the directory path
+Project <- "FluorO2"
+
+#Temporary RunDate during auditing
+RunDate <- "20211213"
+
+
+FileID <- "caloxy"
+DataIn <- file.path("..","RawData", "Optode", RunDate)
+DataOut <- file.path("..","ImportData", "Optode")
+#MetaCatalog <- file.path("..","PicoCatalog.csv")
+
+FileEncode <- "UTF-8" 
+Delimiter <- "\t"
+
+#fixed HeaderRows is brittle; better to figure out how to read all data starting at line that contains 'key'
+Skip <- 13
+Comment <- "#"
+
+```
+
+```{r load libraries} 
+# libraries; Note check actual dependencies
+library(tidyverse)
+library(lubridate)
+#library(stringr)
+library(broom)
+#library(knitr)
+#library(zoo)
+#library(tidyquant)
+#library(googlesheets4)
+#library(googledrive)
+#library(dplyr)
+```
+
+```{r set colours}
+Wavelengths_nm = c(445, 470, 505, 535, 590)
+Colours_nm = c("darkblue", "dodgerblue", "darkgreen", "yellowgreen",  "darkorange")
+
+
+names(Colours_nm) <- Wavelengths_nm
+Colours_nm
+
+```
+
+This chunk reads in the MetaData catalog from googlesheets 
+```{r load Catalog, now as a google sheet}
+# gs4_deauth()
+# #deauthorizes access to googlesheet
+# 
+# MetaCatalog <- read_sheet("https://docs.google.com/spreadsheets/d/1ZXpwR7Gfto-uRzVdXzMpQF4frbrvMLH_IyLqonFZRSw/edit#gid=0") %>%
+# # sheet is read in by sheet ID, obtained from the URL of the sheet.
+# # read_sheet has an annoying "feature" to set the type of columns it can't parse to a list.
+# # ggplot/dplyr doesn't like working with a dataframe of lists.
+# # In this case WL is set to a list since some values are numbers, some are strings, some are blank.
+# # To fix this, first drop all rows missing WL, then unlist.
+# # Must first drop NA rows since unlist will collapse NULL lists, then the unlisted WL is a shorter length than original WL column, which mutate doesn't like.
+# 
+# drop_na(WL) %>%
+#   mutate(WL = unlist(WL))
+# 
+# as.data.frame(MetaCatalog)
+```
+
+listing the names of the oxygen data, classified as DataIn. DataIn = O2Data 
+```{r O2Data files}
+
+O2DataFiles <- list.files(path = DataIn, pattern = FileID, full.names = TRUE)
+
+#check file names
+O2DataFiles
+
+O2DataFiles<-  grep('txt', O2DataFiles, value = TRUE, invert = FALSE)
+
+#only retain .txt files
+O2DataFiles
+```
+
+Creates function using data.table::fread to skip the beginning comments and starts reading file after key word "Data". Seconf function read_tsv_plus adding file name and skips header rows to start reading file after. Data read.delim_plus or read_delim_plus adds filename and cdate, message=FALSE, warning=FALSE
+```{r creating functions to read in data}
+
+#function adds filename and cdate and controls when R starts to read the file, skips header rows
+#fread_plus <- function(Flnm, Skip){data.table::fread(file = Flnm, skip = "Date [A Ch.1 Main]" ) %>% mutate(Filename = Flnm, CDateTime = ymd_hms(file.info(Flnm)$ctime))}
+
+
+#function allows you to read in oxygen data files (Reads in Run14 files)
+read_tsv_plus <- function(Flnm, HeaderRows){read_tsv(Flnm,  col_names = TRUE,  comment = Comment, skip = HeaderRows) %>%
+    mutate(filename = Flnm)}
+
+#generates a read function using tidyverse::read_delim
+ #read.delim_plus <- function(flnm, FileEncode, Delimiter, HeaderRows){read.delim(flnm, fileEncoding = FileEncode, sep = Delimiter,  skip = HeaderRows, row.names = NULL) %>%
+     #mutate(filename = flnm, cdatetime = ymd_hms(file.info(flnm)$ctime))}
+
+#Adds filename and cdate
+#read_delim_plus <- function(Flnm, Delimiter, HeaderRows, Comment){read_delim(file = Flnm, delim = Delimiter, comment = Comment, skip = HeaderRows) %>%
+     #mutate(Filename = Flnm, CDateTime = ymd_hms(file.info(Flnm)$ctime))}
+ 
+```
+
+
+Reads in O2Data, and skips the "notes" at the beginning of the data and begins to read after HeaderRows. Renames columns so there are no duplicates (.name_repair)
+```{r read optode data}
+
+#brittle to use column numbers; needs to be changed if using multiple channels
+O2DataRaw <- O2DataFiles %>% 
+  map_df(~read_tsv_plus(Flnm = ., HeaderRows = Skip)) %>%
+  select(c(1:3, 5, 9,"filename")) %>%
+  rename(AbsTime = `Time (HH:MM:SS)`,
+         LR_s = `Time (s)`,
+         O2_umolL = `Ch1`, 
+         Temp_C = `Ch 1`)
+
+O2Data <- O2DataRaw %>%
+  mutate(filename = str_remove(string = filename, pattern = ".txt")) %>%
+  mutate(filename = str_remove(string = filename, pattern = "../RawData/Optode/")) %>%  
+  separate(filename, into = c("RunDate", "FileDateTime", "Project", "FileID", "CultureID", "AL_WL", "Ex_WL", "TempCont"), sep = "([\\/\\_\\_\\_\\_\\_])", remove = FALSE) %>%
+  separate(col = Ex_WL, into = c("Ex","Ex_WL"), sep = 2) %>%
+  mutate(FileDateTime = ymd_hm(as.numeric(FileDateTime))) %>%
+  separate(FileDateTime, into = c("FileYear", "FileTime"), sep = "([ ])", remove = TRUE) %>%
+  mutate(Ex_WL = as.numeric(Ex_WL)) %>%
+  select(-c(FileYear, Ex))
+
+O2Data[1:5,]
+```
+
+```{r prelimplot}
+O2Data %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = O2_umolL, colour = as.factor(TempCont))) +
+  #scale_colour_manual(values = Colours_nm) +
+  xlim(0, 1000) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+```
+
+
+```{r save SolFitsTrim data}
+saveRDS(O2Data, file.path(DataOut, paste(Project, RunDate, "O2Data.Rds", sep = "_"), fsep = .Platform$file.sep))
+```
+
+
+
