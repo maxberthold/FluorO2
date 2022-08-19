@@ -197,7 +197,7 @@ SolFitsTrim %>%
   geom_point(aes(x = ActPAR, y = Alp2QA, colour = as.factor(TempCont), size = ActPAR)) +
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
-  theme_bw()
+  theme_bw() 
 
 ```
 
