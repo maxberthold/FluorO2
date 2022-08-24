@@ -50,9 +50,9 @@ HeaderRows <- 0
 ```
 
 ```{r conversions}
-us_s = 1000
+us_s = 1000000
 photons_umol = 6.022E17
-
+A2_m = 1E20
 ```
 
 
@@ -211,30 +211,32 @@ Oxborough & Baker 1997 for Fo'
 ```{r estimate parameters}
 #think about nest_by and map?
 SolFitsTrim2 <- SolFitsTrim %>%
-  group_by(CultureID, Ex_WL, Source.DataFile) %>%
+  group_by(Source.DataFile, CultureID, Ex_WL, TempCont) %>%
   mutate(Fodark = Fo[1],
          Fmdark = Fm[1],
          Sigdark = Sig[1],
-         TauAv = (Tau1QA * Alp1QA) + (Tau2QA * Alp2QA) + (Tau3QA * Alp3QA),
+         TauAv = ((Tau1QA * Alp1QA) + (Tau2QA * Alp2QA))/(Alp1QA + Alp2QA),
          aLHIIdark = (Fmdark * Fodark)/(Fmdark - Fodark),
          Fomin = min(Fo, na.rm = TRUE),
          Fmmax = max(Fm, na.rm = TRUE),
          FoOxbo = Fomin/(((Fmmax - Fomin)/Fmmax) + (Fomin/Fm)),
          Sigmax = max(Sig, na.rm = TRUE),
          aLHIIminmax = (Fmmax * Fomin)/(Fmmax - Fomin),
-         Sig_m2psii = Sig/1E20,
-         ActPAR_photonsm2s = ActPAR *  6.022e17,
-         Ctau1 = 1/(1 + (Sig_m2psii * ActPAR_photonsm2s * (Tau1QA/1000000))),
-         Ctau2 = 1/(1 + (Sig_m2psii * ActPAR_photonsm2s * (Tau2QA/1000000))),
+         Sig_m2psii = Sig/A2_m,
+         ActPAR_photonsm2s = ActPAR *  photons_umol,
+         Ctau1 = 1/(1 + (Sig_m2psii * ActPAR_photonsm2s * (Tau1QA/us_s))),
+         Ctau2 = 1/(1 + (Sig_m2psii * ActPAR_photonsm2s * (Tau2QA/us_s))),
+         Ctauav = 1/(1 + (Sig_m2psii * ActPAR_photonsm2s * (TauAv/us_s))),
          qp = (Fm - Fo)/(Fm - lead(Fo)),
          qpOxbo = (Fm - Fo)/(Fm - FoOxbo),
          JVPSII_aLHIIminmax = ActPAR_photonsm2s * aLHIIminmax * FvFm,
          JVPSII_aLHIIdark = ActPAR_photonsm2s * aLHIIdark * FvFm,
          ETRCtau1 = Sig_m2psii * Ctau1 * ActPAR_photonsm2s,
          ETRCtau2 = Sig_m2psii * Ctau2 * ActPAR_photonsm2s,
+         ETRCtauav = Sig_m2psii * Ctauav * ActPAR_photonsm2s,
          ETRqp = Sig_m2psii * qp * ActPAR_photonsm2s,
          ETRqpOxbo = Sig_m2psii * qpOxbo * ActPAR_photonsm2s,
-         ETRGorbo = (1/Tau1QA[7])*((ActPAR*FvFm)/(ActPAR[7]*FvFm[7])) * us_s,
+         ETRGorbo = (1/TauAv[7])*((ActPAR*FvFm)/(ActPAR[7]*FvFm[7])) * us_s,
          #fix row indexing!
          JVPSII_ETRtau1 = ETRCtau1 * Fomin/Sigmax * ActPAR_photonsm2s,
          JVPSII_ETRqpOxbo = ETRqpOxbo * Fomin/Sigmax * ActPAR_photonsm2s) %>%
@@ -250,6 +252,15 @@ SolFitsTrim %>%
   ggplot() +
   geom_point(aes(x = ActPAR, y = aLHIIdark, colour = as.factor(TempCont))) +
   geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
+  #scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
+  theme_bw()
+
+SolFitsTrim2 %>%
+  filter(Dark1s == 0) %>%
+  ggplot() +
+  geom_point(aes(x = ActPAR, y = ETRqpOxbo, colour = as.factor(TempCont))) +
+  geom_point(aes(x = ActPAR, y = ETRGorbo), shape = "cross") +
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
@@ -308,13 +319,13 @@ SolFitsTrim %>%
   theme_bw()
 
 SolFitsTrim2 %>%
-  filter(Dark1s == 0) %>%
+  #filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = ETRCtau1, y = ETRGorbo, colour = as.factor(TempCont))) +
   #geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
   #scale_colour_manual(values = Colours_nm) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
-  #coord_fixed(ratio = 1) +
+  coord_fixed(ratio = 1) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
 
