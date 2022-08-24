@@ -49,6 +49,12 @@ HeaderRows <- 0
 
 ```
 
+```{r conversions}
+us_s = 1000
+photons_umol = 6.022E17
+
+```
+
 
 ```{r load libraries}
 library(tidyverse)
@@ -204,11 +210,12 @@ SolFitsTrim %>%
 Oxborough & Baker 1997 for Fo'
 ```{r estimate parameters}
 #think about nest_by and map?
-SolFitsTrim <- SolFitsTrim %>%
+SolFitsTrim2 <- SolFitsTrim %>%
   group_by(CultureID, Ex_WL, Source.DataFile) %>%
   mutate(Fodark = Fo[1],
          Fmdark = Fm[1],
          Sigdark = Sig[1],
+         TauAv = (Tau1QA * Alp1QA) + (Tau2QA * Alp2QA) + (Tau3QA * Alp3QA),
          aLHIIdark = (Fmdark * Fodark)/(Fmdark - Fodark),
          Fomin = min(Fo, na.rm = TRUE),
          Fmmax = max(Fm, na.rm = TRUE),
@@ -227,6 +234,8 @@ SolFitsTrim <- SolFitsTrim %>%
          ETRCtau2 = Sig_m2psii * Ctau2 * ActPAR_photonsm2s,
          ETRqp = Sig_m2psii * qp * ActPAR_photonsm2s,
          ETRqpOxbo = Sig_m2psii * qpOxbo * ActPAR_photonsm2s,
+         ETRGorbo = (1/Tau1QA[7])*((ActPAR*FvFm)/(ActPAR[7]*FvFm[7])) * us_s,
+         #fix row indexing!
          JVPSII_ETRtau1 = ETRCtau1 * Fomin/Sigmax * ActPAR_photonsm2s,
          JVPSII_ETRqpOxbo = ETRqpOxbo * Fomin/Sigmax * ActPAR_photonsm2s) %>%
   ungroup()
@@ -298,7 +307,18 @@ SolFitsTrim %>%
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
 
-SolFitsTrim %>%
+SolFitsTrim2 %>%
+  filter(Dark1s == 0) %>%
+  ggplot() +
+  geom_point(aes(x = ETRCtau1, y = ETRGorbo, colour = as.factor(TempCont))) +
+  #geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
+  #scale_colour_manual(values = Colours_nm) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+  #coord_fixed(ratio = 1) +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
+  theme_bw()
+
+SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = JVPSII_aLHIIminmax, y = JVPSII_ETRtau1, colour = as.factor(TempCont))) +
@@ -309,7 +329,7 @@ SolFitsTrim %>%
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
 
-SolFitsTrim %>%
+SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = qpOxbo, y = qp, colour = as.factor(TempCont))) +
