@@ -236,8 +236,9 @@ SolFitsTrim2 <- SolFitsTrim %>%
          ETRCtauav = Sig_m2psii * Ctauav * ActPAR_photonsm2s,
          ETRqp = Sig_m2psii * qp * ActPAR_photonsm2s,
          ETRqpOxbo = Sig_m2psii * qpOxbo * ActPAR_photonsm2s,
-         ETRGorbo = (1/TauAv[7])*((ActPAR*FvFm)/(ActPAR[7]*FvFm[7])) * us_s,
-         #fix row indexing!
+         #ETRGorbo = (1/TauAv[7])*((ActPAR*FvFm)/(ActPAR[7]*FvFm[7])) * us_s,
+         ETRGorbo = (1/TauAv[ActPAR == max(ActPAR)])*((ActPAR*FvFm)/(max(ActPAR)*FvFm[ActPAR == max(ActPAR)])) * us_s,
+         #fix row indexing!  Confirm indexing is working
          JVPSII_ETRtau1 = ETRCtau1 * Fomin/Sigmax * ActPAR_photonsm2s,
          JVPSII_ETRqpOxbo = ETRqpOxbo * Fomin/Sigmax * ActPAR_photonsm2s) %>%
   ungroup()
