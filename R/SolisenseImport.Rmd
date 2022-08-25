@@ -308,7 +308,7 @@ SolFitsTrim %>%
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
 
-SolFitsTrim %>%
+SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = ETRCtau1, y = ETRCtau2, colour = as.factor(TempCont))) +
@@ -326,7 +326,18 @@ SolFitsTrim2 %>%
   #geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
   #scale_colour_manual(values = Colours_nm) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
-  coord_fixed(ratio = 1) +
+  #coord_fixed(ratio = 1) +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
+  theme_bw()
+
+SolFitsTrim2 %>%
+  #filter(Dark1s == 0) %>%
+  ggplot() +
+  geom_point(aes(x = ETRCtauav, y = ETRGorbo, colour = as.factor(TempCont))) +
+  #geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
+  #scale_colour_manual(values = Colours_nm) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+  #coord_fixed(ratio = 1) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
 
