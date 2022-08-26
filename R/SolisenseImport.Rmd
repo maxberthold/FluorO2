@@ -35,6 +35,7 @@ knitr::opts_chunk$set(fig.path='Figs/')
 ```{r set project variables}
 Project <- "FluorO2"
 DataOut <- file.path("..", "ImportData", "FRRf")
+CalibData <- file.path("..", "CalibrationData")
 
 #Temporary RunDate during auditing
 RunDate <- "Refit"
@@ -75,7 +76,8 @@ library(lubridate)
 ```{r read ActPAR calibration files}
 #ActPARCal <- readRDS("~/Dropbox/CampbellLabProtocols/ChlorophyllFluorescence/SolisenseInformation/SolisenseInformation_DCCalibParam.Rds")
 
-ActPARCrossCal <- readRDS("~/Dropbox/CampbellLabProtocols/ChlorophyllFluorescence/SolisenseInformation/SolisenseInformation_DCCrossParam.Rds")
+ActPARCrossCal <- list.files(path = CalibData, full.names = TRUE)  %>%
+       map_df(~readRDS(file  = .))
 
 #intercept set to 0 in lm in SolisenseInformation.Rproj/SolisenseCalibCompare.Rmd
 ActPARCrossCal <- ActPARCrossCal |>
@@ -336,7 +338,7 @@ SolFitsTrim2 %>%
   coord_fixed(xlim = c(0,1), ylim = c(0,1), ratio = 1) +
   theme_bw()
 
-SolFitsTrim %>%
+SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = ActPARCorr, y = JVPSII_aLHIIminmax, colour = as.factor(TempCont))) +
@@ -345,7 +347,7 @@ SolFitsTrim %>%
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
 
-SolFitsTrim %>%
+SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = JVPSII_aLHIIdark, y = JVPSII_aLHIIminmax, colour = as.factor(TempCont))) +
@@ -411,7 +413,7 @@ SolFitsTrim2 %>%
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
 
-SolFitsTrim %>%
+SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = JVPSII_aLHIIminmax, y = JVPSII_ETRqpOxbo, colour = as.factor(TempCont))) +
