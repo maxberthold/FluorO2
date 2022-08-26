@@ -275,7 +275,7 @@ SolFitsTrim2 <- SolFitsTrim %>%
          qpOxbo = (Fm - Fo)/(Fm - FoOxbo),
          JVPSII_aLHIIminmax = ActPARCorr_photonsm2s * aLHIIminmax * FvFm, #issue with FvFm in cyanobacteria; minimized with blue light excitation
          JVPSII_aLHIIdark = ActPARCorr_photonsm2s * aLHIIdark * FvFm,
-         JVPSII_aLHIIdark = ActPARCorr_photonsm2s * aLHIIOxbomax * FvFm,
+         JVPSII_aLHIIOxbomax = ActPARCorr_photonsm2s * aLHIIOxbomax * FvFm,
          ETRCtau1 = Sig_m2psii * Ctau1 * ActPARCorr_photonsm2s,
          ETRCtau2 = Sig_m2psii * Ctau2 * ActPARCorr_photonsm2s,
          ETRCtauav = Sig_m2psii * Ctauav * ActPARCorr_photonsm2s,
@@ -285,7 +285,7 @@ SolFitsTrim2 <- SolFitsTrim %>%
          TestTauAvSat = 1/TauAv[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)],
          ETRGorbo = (1/TauAv[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)])*((ActPARCorr_photonsm2s*FvFm)/(max(ActPARCorr_photonsm2s))*(FvFm[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)])) * us_s,
                                                                                     #Pmax x scaling for change in yield and light
-         #Confirm indexing is working; relies upon phiPSII which is not absolute in cyanos
+#relies upon phiPSII which is not absolute in cyanos
          JVPSII_ETRtauav = ETRCtauav * Fomin/Sigmax, #Sigmax not converted A2_m2
          JVPSII_ETRqpOxbo = ETRqpOxbo * Fomin/Sigmax,
          JVPSII_ETRtauav = ETRCtauav * aLHIIOxbomax/Sigmax,
@@ -314,7 +314,7 @@ SolFitsTrim2 %>%
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
-#ETRGorbo looks fast and is unexpectedly similar between 440 & 590
+
 
 # SolFitsTrim %>%
 #   filter(Dark1s == 0) %>%
@@ -361,7 +361,7 @@ SolFitsTrim2 %>%
 SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = ETRCtau1, y = ETRCtau2, colour = as.factor(TempCont))) +
+  geom_point(aes(x = JVPSII_aLHIIdark, y = JVPSII_aLHIIOxbomax, colour = as.factor(TempCont))) +
   #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
   #scale_colour_manual(values = Colours_nm) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
@@ -370,15 +370,18 @@ SolFitsTrim2 %>%
   theme_bw()
 
 SolFitsTrim2 %>%
-  #filter(Dark1s == 0) %>%
+  filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = ETRCtau1, y = ETRGorbo, colour = as.factor(TempCont))) +
+  geom_point(aes(x = ETRCtau1, y = ETRCtauav, colour = as.factor(TempCont))) +
   #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
   #scale_colour_manual(values = Colours_nm) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
-  #coord_fixed(ratio = 1) +
+  coord_fixed(ratio = 1) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
+
+
+  #ETRGorbo works well for blue light but appears to fail for 590 nm; possible issue with low FV/FM with PBsome excitation?
 
 SolFitsTrim2 %>%
   #filter(Dark1s == 0) %>%
@@ -394,7 +397,7 @@ SolFitsTrim2 %>%
 SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = JVPSII_aLHIIminmax, y = JVPSII_ETRtau1, colour = as.factor(TempCont))) +
+  geom_point(aes(x = JVPSII_aLHIIminmax, y = JVPSII_ETRtauav, colour = as.factor(TempCont))) +
   #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
   #scale_colour_manual(values = Colours_nm) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
@@ -429,7 +432,7 @@ SolFitsTrim2 %>%
 
 
 ```{r save SolFitsTrim data}
-saveRDS(SolFitsTrim, file.path(DataOut, paste(Project, RunDate, "SolFitsTrim.Rds", sep = "_"), fsep = .Platform$file.sep))
+saveRDS(SolFitsTrim2, file.path(DataOut, paste(Project, RunDate, "SolFitsTrim.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
 
 
