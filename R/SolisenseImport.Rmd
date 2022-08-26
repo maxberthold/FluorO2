@@ -18,6 +18,11 @@ csl: plos-one.csl
 *Some of the code used to create this R Notebook was refurbished from "PlateAbImport.Rmd" written by Maximilian Berthold, Douglas A. Campbell, Melissa L. Rioux, Sarah J Gore, and Alyson MacCormack.*
 
 # To Do
+Corrected values for Excitation; does this 'happen' during the re-fit if the proper calibration file settings are chose, but the recalibration for ActPAR has to be done post-hoc
+  Refit needs to be done separately for data from Cuvette & Data from water jacket; TC/no TC will need to be segregated somehow.
+  
+Corrected values for ActPAR for cuvette (no TC) and for jacket (TC)
+
 Add more ETR estimators
 
 # Set Chunk Options
@@ -52,7 +57,7 @@ HeaderRows <- 0
 ```{r conversions}
 us_s = 1000000
 photons_umol = 6.022E17
-A2_m = 1E20
+A2_m2 = 1E20
 ```
 
 
@@ -67,6 +72,18 @@ library(lubridate)
 
 ```
 
+```{r read ActPAR calibration files}
+#ActPARCal <- readRDS("~/Dropbox/CampbellLabProtocols/ChlorophyllFluorescence/SolisenseInformation/SolisenseInformation_DCCalibParam.Rds")
+
+ActPARCrossCal <- readRDS("~/Dropbox/CampbellLabProtocols/ChlorophyllFluorescence/SolisenseInformation/SolisenseInformation_DCCrossParam.Rds")
+
+#intercept set to 0 in lm in SolisenseInformation.Rproj/SolisenseCalibCompare.Rmd
+ActPARCrossCal <- ActPARCrossCal |>
+  rename(#Intercept = `estimate_(Intercept)`,
+         Slope = `estimate_LIFT_Gen_Developer.cal`,
+         #Intercept_SE = `std.error_(Intercept)`,
+         Slope_SE = `std.error_LIFT_Gen_Developer.cal`)
+```
 
 ```{r load local catalog, message = FALSE, warning = FALSE, echo=FALSE}
 #col_types specified for some columns as only the last few rows of a large dataset contained values for these columns and the values were not being read in properly
@@ -162,6 +179,25 @@ SolFitsTrim <- SolFits %>%
   relocate(ObsDateTime, .after = ObsTime) %>%
   relocate(CultureID, .before = ObsDate) 
 
+#Add ActPARcorr with proper correction factors for TC and no TC
+#Intercepts for cross conversions set to 0.
+
+#Some smarter way to do this with map etc....
+SolFitsTrimTest <- SolFitsTrim |>
+  mutate(Light_1Corr = case_when(TempCont == "TC" ~ Light_1 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr1_uE" & ActPARCrossCal$Models == "DCWaterJacketlm_tidy"],
+                                 TempCont == "noTC" ~ Light_1 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr1_uE" & ActPARCrossCal$Models == "DCCuvettelm_tidy"]),
+         Light_2Corr = case_when(TempCont == "TC" ~ Light_2 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr2_uE" & ActPARCrossCal$Models == "DCWaterJacketlm_tidy"],
+                                 TempCont == "noTC" ~ Light_2 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr2_uE" & ActPARCrossCal$Models == "DCCuvettelm_tidy"]),
+         Light_3Corr = case_when(TempCont == "TC" ~ Light_3 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr3_uE" & ActPARCrossCal$Models == "DCWaterJacketlm_tidy"],
+                                 TempCont == "noTC" ~ Light_3 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr3_uE" & ActPARCrossCal$Models == "DCCuvettelm_tidy"]),
+           Light_4Corr = case_when(TempCont == "TC" ~ Light_4 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr4_uE" & ActPARCrossCal$Models == "DCWaterJacketlm_tidy"],
+                                 TempCont == "noTC" ~ Light_4 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr4_uE" & ActPARCrossCal$Models == "DCCuvettelm_tidy"]),
+          Light_5Corr = case_when(TempCont == "TC" ~ Light_5 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr5_uE" & ActPARCrossCal$Models == "DCWaterJacketlm_tidy"],
+                                 TempCont == "noTC" ~ Light_5 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "Pwr5_uE" & ActPARCrossCal$Models == "DCCuvettelm_tidy"]),
+          Light_IRCorr = case_when(TempCont == "TC" ~ Light_6 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "PwrIR_uE" & ActPARCrossCal$Models == "DCWaterJacketlm_tidy"],
+                                 TempCont == "noTC" ~ Light_6 * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "PwrIR_uE" & ActPARCrossCal$Models == "DCCuvettelm_tidy"]))
+
+
 SolFitsTrim <- SolFitsTrim %>%
   mutate(across(.cols = c(Light_1:ETR), .fns = as.numeric)) %>%
   mutate(ActPAR = Light_1 + Light_2 + Light_3 + Light_4 + Light_5 + Light_6) #better ways to do this?
@@ -222,25 +258,30 @@ SolFitsTrim2 <- SolFitsTrim %>%
          FoOxbo = Fomin/(((Fmmax - Fomin)/Fmmax) + (Fomin/Fm)),
          Sigmax = max(Sig, na.rm = TRUE),
          aLHIIminmax = (Fmmax * Fomin)/(Fmmax - Fomin),
-         Sig_m2psii = Sig/A2_m,
+         aLHIIOxbomax = (Fmmax * FoOxbo)/(Fmmax - FoOxbo),
+         Sig_m2psii = Sig/A2_m2,
          ActPAR_photonsm2s = ActPAR *  photons_umol,
          Ctau1 = 1/(1 + (Sig_m2psii * ActPAR_photonsm2s * (Tau1QA/us_s))),
          Ctau2 = 1/(1 + (Sig_m2psii * ActPAR_photonsm2s * (Tau2QA/us_s))),
          Ctauav = 1/(1 + (Sig_m2psii * ActPAR_photonsm2s * (TauAv/us_s))),
-         qp = (Fm - Fo)/(Fm - lead(Fo)),
+         qp = (Fm - Fo)/(Fm - lead(Fo)), #(Fm' - Fs)/(Fm' - Fo'); messes up every 2nd row from double tap data but then filter out rows from 'dark'
          qpOxbo = (Fm - Fo)/(Fm - FoOxbo),
-         JVPSII_aLHIIminmax = ActPAR_photonsm2s * aLHIIminmax * FvFm,
+         JVPSII_aLHIIminmax = ActPAR_photonsm2s * aLHIIminmax * FvFm, #issue with FvFm in cyanobacteria; minimized with blue light excitation
          JVPSII_aLHIIdark = ActPAR_photonsm2s * aLHIIdark * FvFm,
+         JVPSII_aLHIIdark = ActPAR_photonsm2s * aLHIIOxbomax * FvFm,
          ETRCtau1 = Sig_m2psii * Ctau1 * ActPAR_photonsm2s,
          ETRCtau2 = Sig_m2psii * Ctau2 * ActPAR_photonsm2s,
          ETRCtauav = Sig_m2psii * Ctauav * ActPAR_photonsm2s,
          ETRqp = Sig_m2psii * qp * ActPAR_photonsm2s,
          ETRqpOxbo = Sig_m2psii * qpOxbo * ActPAR_photonsm2s,
          #ETRGorbo = (1/TauAv[7])*((ActPAR*FvFm)/(ActPAR[7]*FvFm[7])) * us_s,
-         ETRGorbo = (1/TauAv[ActPAR == max(ActPAR)])*((ActPAR*FvFm)/(max(ActPAR)*FvFm[ActPAR == max(ActPAR)])) * us_s,
-         #fix row indexing!  Confirm indexing is working
-         JVPSII_ETRtau1 = ETRCtau1 * Fomin/Sigmax * ActPAR_photonsm2s,
-         JVPSII_ETRqpOxbo = ETRqpOxbo * Fomin/Sigmax * ActPAR_photonsm2s) %>%
+         TestTauAvSat = 1/TauAv[ActPAR == max(ActPAR)],
+         ETRGorbo = (1/TauAv[ActPAR == max(ActPAR)])*((ActPAR*FvFm)/(max(ActPAR))*(FvFm[ActPAR == max(ActPAR)])) * us_s,  #Pmax x scaling for change in yield and light
+         #Confirm indexing is working; relies upon phiPSII which is not absolute in cyanos
+         JVPSII_ETRtauav = ETRCtauav * Fomin/Sigmax, #Sigmax not converted A2_m2
+         JVPSII_ETRqpOxbo = ETRqpOxbo * Fomin/Sigmax,
+         JVPSII_ETRtauav = ETRCtauav * aLHIIOxbomax/Sigmax,
+         JVPSII_ETRqpOxbo = ETRqpOxbo * aLHIIOxbomax/Sigmax) %>%
   ungroup()
 
 
@@ -248,10 +289,10 @@ SolFitsTrim2 <- SolFitsTrim %>%
 ```
 
 ```{r prelimplots2}
-SolFitsTrim %>%
+SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = ActPAR, y = aLHIIdark, colour = as.factor(TempCont))) +
+  geom_point(aes(x = ActPAR, y = aLHIIOxbomax, colour = as.factor(TempCont))) +
   geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
@@ -265,22 +306,23 @@ SolFitsTrim2 %>%
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
+#ETRGorbo looks fast and is unexpectedly similar between 440 & 590
 
-SolFitsTrim %>%
+# SolFitsTrim %>%
+#   filter(Dark1s == 0) %>%
+#   ggplot() +
+#   geom_point(aes(x = Ctau1, y = qp, colour = as.factor(TempCont))) +
+#   #geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
+#   #scale_colour_manual(values = Colours_nm) +
+#   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
+#   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+#   coord_fixed(xlim = c(0,1), ylim = c(0,1), ratio = 1) +
+#   theme_bw()
+
+SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = Ctau1, y = qp, colour = as.factor(TempCont))) +
-  #geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
-  #scale_colour_manual(values = Colours_nm) +
-  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
-  geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
-  coord_fixed(xlim = c(0,1), ylim = c(0,1), ratio = 1) +
-  theme_bw()
-
-SolFitsTrim %>%
-  filter(Dark1s == 0) %>%
-  ggplot() +
-  geom_point(aes(x = Ctau2, y = qp, colour = as.factor(TempCont))) +
+  geom_point(aes(x = Ctauav, y = qp, colour = as.factor(TempCont))) +
   #geom_point(aes(x = ActPAR, y = aLHIIminmax), shape = "cross") +
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
