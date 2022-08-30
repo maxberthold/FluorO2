@@ -23,11 +23,10 @@ Corrected values for Excitation; this 'happens' during the re-fit if the proper 
   
 Corrected values for ActPAR for cuvette (no TC) and for jacket (TC)
 
-Add more ETR estimators
-
 # Done
 # Set Chunk Options
 # Recalibration for ActPAR to ActPARCorr done post-hoc herein
+# Add more ETR estimators
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE)
