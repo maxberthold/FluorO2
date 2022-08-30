@@ -18,10 +18,12 @@ csl: plos-one.csl
 Compare [O2] to FRRf data.
 
 Define time windows defined by changes in PAR imposed by script from FRRf changes in PAR.
-For each run create a series of nests of O2 concentration data from optode for each PAR level and each TempCont setting.
-Trim O2 data nests to remove first 35 rows (~ 35 s) of 180 rows (~ 180 s) to avoid initial induction period.
+For each run create a series of nests of [O2] data from optode for each PAR level and each TempCont setting.
+Trim [O2] data nests to remove first 35 rows (~ 35 s) of 180 rows (~ 180 s) to avoid initial induction period.
 Fit slopes of umol O2  l~-1~ s~-1~ for each PAR level nest.
 Generate estimates of gross umol O2  l~-1~ s~-1~ by subtracting dark respiration rates.
+  Initial and final O2 respiration rate estimators; average? chose?
+  
 Plot gross umol O2  l~-1~ s~-1~ vs. PAR to detect outliers.
 
 i. Compare O2 l~-1~ s~-1~ slopes for each PAR to estimates of PSII ETR e- PSII~-1~ s~-1~ taken from FRR measures at that same PAR level.
@@ -29,7 +31,7 @@ i. Compare O2 l~-1~ s~-1~ slopes for each PAR to estimates of PSII ETR e- PSII~-
   O2 l~-1~ s~-1~ = (e- PSII~-1~ s~-1~)/4 * [PSII], so
   [PSII] = O2 l~-1~ s~-1~ * 4/(e- PSII~-1~ s~-1~)
 
-For a given sample [PSII] should be a constant; any change in O2 l~-1~ s~-1~ with increasing PAR should be driven solely by changes in e- PSII~-1~ s~-1~.  If apparent [PSII] changes this indicates issues with measurements, as for example recycling of electrons leaving PSII back to reduction of O2 induced under high light, which lowers measured O2 l~-1~ s~-1~.
+For a given sample [PSII] should be a constant; any change in O2 l~-1~ s~-1~ with increasing PAR or changing actinic light colour should be driven solely by changes in e- PSII~-1~ s~-1~.  If apparent [PSII] changes this indicates issues with measurements, as for example recycling of electrons leaving PSII back to reduction of O2 induced under high light, which lowers measured O2 l~-1~ s~-1~, or distortions under different excitation colours 450 nm vs. 590 nm.
 
 ii.  Comparing results from different samples and light levels and light qualities, generate calibration(s) for fluorescence based estimators of [PSII] like Fo/sigmaPSII.
   
@@ -127,14 +129,17 @@ O2Data <- O2Data %>%
   filter(!is.na(LR_s)) %>%
   filter(TempCont == Cuvette) %>%
   filter(CultureID == StrainID) %>%
-  mutate(Date = ymd(Date),
+  mutate(ObsDate = ymd(RunDate),
          AbsTime = as.period(AbsTime),
          Ex_WL = as.factor(Ex_WL))
 
-FRRfData <- FRRfData %>%
+#ReFit FRRf data includes multiple run dates; filter to match selected O2 data
+FRRfDataLight <- FRRfData %>%
   filter(!is.na(LR_s)) %>%
   filter(TempCont == Cuvette) %>%
-  filter(CultureID == StrainID) 
+  filter(CultureID == StrainID) %>%
+  filter(Dark1s == 0) %>%
+  filter(ObsDate == ymd(RunDateOxy))
 
 ```
 
@@ -148,8 +153,15 @@ O2Data %>%
   xlim(0, 1000) +
   theme_bw()
 
-FRRfData %>%
-  filter(Dark1s == 0) %>%
+FRRfDataLight %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = ETRCtauav, colour = Ex_WL)) +
+  #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+FRRfDataLight %>%
   ggplot() +
   geom_point(aes(x = LR_s, y = ETRqpOxbo, colour = Ex_WL)) +
   #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
@@ -157,46 +169,41 @@ FRRfData %>%
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
 
-FRRfData %>%
-  filter(Dark1s == 0) %>%
+FRRfDataLight %>%
   ggplot() +
-  geom_point(aes(x = LR_s, y = JVPSII_aLHIIminmax, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = ETRGorbo, colour = Ex_WL)) +
   #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
 
-FRRfData %>%
-  filter(Dark1s == 0) %>%
+FRRfDataLight %>%
   ggplot() +
-  geom_point(aes(x = LR_s, y = JVPSII_aLHIIOxbomax, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRtauav_FoSig, colour = Ex_WL)) +
   #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
 
-FRRfData %>%
-  filter(Dark1s == 0) %>%
+FRRfDataLight %>%
   ggplot() +
-  geom_point(aes(x = LR_s, y = JVPSII_ETRqpOxbo, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRqpOxbo_FoSig, colour = Ex_WL)) +
   #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
 
-FRRfData %>%
-  filter(Dark1s == 0) %>%
+FRRfDataLight %>%
   ggplot() +
-  geom_point(aes(x = LR_s, y = ETRqpOxbo, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL)) +
   #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
 
-FRRfData %>%
-  filter(Dark1s == 0) %>%
+FRRfDataLight %>%
   ggplot() +
-  geom_point(aes(x = LR_s, y = (ETRqpOxbo * Fomin/Sig_m2psii), colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRqpOxbo_aLHII_Sig, colour = Ex_WL)) +
   #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
@@ -206,8 +213,11 @@ FRRfData %>%
 ## Try Simple left_join, in case times line up
 
 ```{r leftjoin}
-O2SlopeData <- left_join(x = O2Data, y = FRRfData, by = c(c("Date" = "ObsDate"), c("AbsTime" = "ObsTime"), "CultureID", "Ex_WL"), suffix = c("O2", "FRRf"), keep = FALSE) %>%
-  select(c("Date":"LR_sFRRf", "ActPARCorr", "ActPARCorr_photonsm2s")) #%>%
+O2SlopeData <- left_join(x = O2Data, y = FRRfDataLight, by = c("ObsDate", "CultureID", "Ex_WL", "TempCont"), suffix = c("O2", "FRRf"), keep = FALSE)%>%
+  select(-c("RFID_User_Data":"Dur.Wat", "SNR_raw", "FP1", "nm445":"IRCorr")) 
+
+
+#%>%
   #filter(LR_sO2 < 1080)  #202112130850_MURIS_caloxy_MaBe3729_AL590_Ex590_noTC.txt had an error, where the same time showed up twice 08:57:50 because of an optode lag; left_join only copied respective FRRf dark phase, but not AL-phase --> double NULL instead of 40, 0; fixed by altering time in original file by some microseconds to 08:57:49 and 08:57:50
 
 
