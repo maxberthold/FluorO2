@@ -62,6 +62,13 @@ CatalogPath <- file.path("../MURIS/MURIS_catalog.csv")
 
 ```
 
+```{r set constants}
+photons_umol = 6.022E17
+A2_m2 = 1E20
+us_s = 1000000
+```
+
+
 ```{r load libraries} 
 # libraries; Note check actual dependencies
 library(tidyverse)
@@ -130,7 +137,7 @@ O2Data <- O2Data %>%
   filter(TempCont == Cuvette) %>%
   filter(CultureID == StrainID) %>%
   mutate(ObsDate = ymd(RunDate),
-         AbsTime = as.period(AbsTime),
+         ObsTime = as.period(AbsTime),
          Ex_WL = as.factor(Ex_WL))
 
 #ReFit FRRf data includes multiple run dates; filter to match selected O2 data
@@ -211,9 +218,9 @@ FRRfDataLight %>%
 ```
 
 ## Try Simple left_join, in case times line up
-
+# Many blank rows after left join b/c most O2 rows do not have explicit FRRf row.  Possible problem if ObsTime gets out of sync b/t Optode & FRRf data captures
 ```{r leftjoin}
-O2SlopeData <- left_join(x = O2Data, y = FRRfDataLight, by = c("ObsDate", "CultureID", "Ex_WL", "TempCont"), suffix = c("O2", "FRRf"), keep = FALSE)%>%
+O2SlopeData <- left_join(x = O2Data, y = FRRfDataLight, by = c("ObsDate", "ObsTime", "CultureID", "Ex_WL", "TempCont"), suffix = c("O2", "FRRf"), keep = FALSE) %>%
   select(-c("RFID_User_Data":"Dur.Wat", "SNR_raw", "FP1", "nm445":"IRCorr")) 
 
 
@@ -246,7 +253,7 @@ interpolate <- function(x){zoo::na.locf(x, na.rm = FALSE, fromLast = TRUE, type 
 
 O2SlopeData <- O2SlopeData %>%
   mutate(ActPARCorrinter = interpolate(ActPARCorr),
-         Dark1sinter = interpolate(Dark1s), 
+         #Dark1sinter = interpolate(Dark1s), 
          LR_sFRRfinter = interpolate(LR_sFRRf), .after = Temp_C)
          
          #ActPARCorr_photonsm2sinter = interpolate(ActPARCorr_photonsm2s),
@@ -300,10 +307,10 @@ O2SlopeData %>%
 
 Estimate O2 slopes over LR PAR step ranges
 Be careful with nesting!  Multiple steps at single ActPARCorrinter
-Filter out first 30 s of each ActPARCorrinter set to skip 'induction' phase.
+Filter out first 50 s of each ActPARCorrinter set to skip 'induction' phase.
 Filter out last 5 s to avoid Dark1s = 1 rows
 ```{r O2slopes}
-induction_s = 115
+induction_s = 50
 end_s = 175
 
 # GPP_model <- function(data) {
@@ -311,9 +318,9 @@ end_s = 175
 # }
 
 O2Slopes <- O2SlopeData %>%
-  filter(Dark1sinter == 0) %>%
-  #filter(TempCont == "noTC") %>%
-  nest(O2data = -c(Date, CultureID, Ex_WL, filenameO2, ActPARCorrinter, LR_sFRRfinter)) %>% 
+  #nest(O2data = -c(Date, CultureID, Ex_WL, filenameO2, ActPARCorrinter, LR_sFRRfinter)) %>% 
+    nest(O2data = -c(Date, ActPARCorrinter,LR_sFRRfinter, filenameO2,CultureID, FileTime, CultureID, FileTime, CultureID, AL_WL, Ex_WL, TempCont, ObsDate)) %>%
+  filter(!is.na(ActPARCorrinter)) %>%
   #nest(O2data = c(Date, AbsTime, LR_sO2, O2_umolL, Temp_C, ActPARCorrinter, filenameO2)) %>%
   mutate(O2lm = map(O2data,  possibly(~ lm(O2_umolL[induction_s:end_s] ~ as.numeric(AbsTime[induction_s:end_s]), data = .x), otherwise = NULL)),
          O2lm_tidy = map(O2lm, possibly(tidy, otherwise = NULL))) %>%
@@ -322,9 +329,9 @@ O2Slopes <- O2SlopeData %>%
   filter(term  != "(Intercept)") %>%
   select(-term) %>%
   rename(O2_umolLs = estimate) %>%
-  group_by(Date, filenameO2, CultureID, Ex_WL) %>% #careful with group_by; this only works with a single replication of each LR
+  group_by(Date, filenameO2, CultureID, Ex_WL) %>% #careful with group_by; this only works with a single replication of each LR with 5 steps per LR starting and ending with 0; redo to average all O2_umolLs at PAR = 0
   #mutate(O2evln_O2ls_OLD = (O2_umolLs - min(O2_umolLs)) * 6.022e17) %>%
-  mutate(O2evln_O2ls = ((O2_umolLs - mean(O2_umolLs[1], O2_umolLs[5]))* 6.022e17)) %>%
+  mutate(O2evln_O2ls = ((O2_umolLs - mean(O2_umolLs[1], O2_umolLs[5]))* photons_umol)) %>%
   # nest() %>%
   # mutate(O2evln_O2ls = map(.x = data, .f = ~GPP_model)) #%>%
   # mutate(O2evln_O2ls_ALT = map(.x = data, .f = ~((.x$O2_umolLs - mean(.x$O2_umolLs[1], .x$O2_umolLs[5]))))) %>%
@@ -368,14 +375,6 @@ O2FRRfMeta <- left_join(x = FRRfData, y = O2Slopes, by = c(c("ObsDate" = "Date")
 
 # Cross plots of O2 evolution and FRRf electron transport estimators
 ```{r O2FRRfcrossplots}
-O2FRRfMeta %>%
-  filter(O2evln_O2ls > 0) %>%
-  filter(ETRqpOxbo > 0) %>%
-  ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = ETRqpOxbo, colour = Ex_WL)) +
-  scale_colour_manual(values = Colours_nm) +
-  facet_grid(cols = vars(strain)) +
-  theme_bw()
 
 
 O2FRRfMeta %>%
@@ -387,13 +386,23 @@ O2FRRfMeta %>%
   facet_grid(cols = vars(strain)) +
   theme_bw()
 
+
 O2FRRfMeta %>%
   filter(O2evln_O2ls > 0) %>%
-  filter(JVPSII_aLHIIminmax > 0) %>%
+  filter(ETRCtauav > 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = Ex_WL)) +
+  geom_point(aes(x = O2evln_O2ls, y = ETRCtauav, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = Ex_WL), method = "lm") +
+  facet_grid(cols = vars(strain)) +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(O2evln_O2ls > 0) %>%
+  filter(ETRqpOxbo > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = ETRqpOxbo, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = ETRqpOxbo, colour = Ex_WL), method = "lm") +
   #facet_grid(cols = vars(strain)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -401,15 +410,64 @@ O2FRRfMeta %>%
 
 O2FRRfMeta %>%
   filter(O2evln_O2ls > 0) %>%
-  filter(JVPSII_ETRqpOxbo > 0) %>%
+  filter(ETRGorbo > 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo, colour = Ex_WL)) +
+  geom_point(aes(x = O2evln_O2ls, y = ETRGorbo, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo, colour = Ex_WL), method = "lm") +
+  geom_smooth(aes(x = O2evln_O2ls, y = ETRGorbo, colour = Ex_WL), method = "lm") +
   #facet_grid(cols = vars(strain)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed") +
   theme_bw()
+
+O2FRRfMeta %>%
+  filter(O2evln_O2ls > 0) %>%
+  filter(JVPSII_ETRtauav_FoSig > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(O2evln_O2ls > 0) %>%
+  filter(JVPSII_ETRqpOxbo_FoSig > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo_FoSig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo_FoSig, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(O2evln_O2ls > 0) %>%
+  filter(JVPSII_ETRtauav_aLHII_Sig > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(O2evln_O2ls > 0) %>%
+  filter(JVPSII_ETRqpOxbo_aLHII_Sig > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo_aLHII_Sig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo_aLHII_Sig, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
 ```
 
 For e- PSII-1 s-1 estimators like ETRqpOxbo, a plot vs. O2 evln_O2ls should give a linear regression.
@@ -431,14 +489,12 @@ Filter O2-evolution values that are lower under higher light, caused by photoinh
 
 ```{r}
 O2FRRfMeta590 <- O2FRRfMeta %>%
-  filter(Dark1s != 1) %>%
   filter(Ex_WL == 590) %>%
   #filter(O2_umolLs < 0.05) %>% # for MaBe3729 20211210, TC
   filter(O2evln_O2ls > lag(O2evln_O2ls) & ActPARCorr > lag(ActPARCorr)) #%>%
   #filter(O2evln_O2ls > lead(O2evln_O2ls)) # for MaBe3726 20211210, noTC
 
 O2FRRfMeta445 <- O2FRRfMeta %>%
-  filter(Dark1s != 1) %>%
   filter(Ex_WL == 445) %>%
   #filter(LR_sFRRfinter != 733) %>% #MaBe3727 20211210, TC
   #filter(LR_sFRRfinter != 732) %>% #for MaBe3726 20211210, noTC
