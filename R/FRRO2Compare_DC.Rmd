@@ -124,10 +124,10 @@ FRRfData <- readRDS(file = file.path(DataInFRRf, paste("FluorO2_", RunDateFRRf, 
 
 ```{r set run specific O2 variables}
   #FRRf refit includes data from both dates
-RunDateOxy <- 20211210
+RunDateOxy <- 20211213
   #20211213 alternate date
-Cuvette <- "TC" #TC
-StrainID <- "MaBe3729" #MaBe3724 MaBe3725 MaBe3726 MaBe3727 MaBe3728 MaBe3729
+Cuvette <- "TC" #TC noTC
+StrainID <- "MaBe3724" #MaBe3724 MaBe3725 MaBe3726 MaBe3727 MaBe3728 MaBe3729
 
 ```
 
