@@ -538,7 +538,7 @@ O2FRRfMetaNest %>%
 
 
 ```{r save O2FRRfMeta}
-saveRDS(O2FRRfMetaFilter, file.path(DataOut, paste(Project, RunDate, Cuvette, StrainID, "O2FRRfMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
+saveRDS(O2FRRfMetaFilter, file.path(DataOut, paste(Project, Cuvette, StrainID, "O2FRRfMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
 
 
