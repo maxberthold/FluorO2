@@ -198,15 +198,8 @@ O2FRRfAll <- O2FRRfFiles %>%
 ```
 
 
-```{r leftjoin ChloroDataAver to O2FRRfData}
-O2FRRfPool <- left_join(x = O2FRRfAll, y = ChloroDataAver, by = c("CultureID", c("ObsDate" = "DATE")), suffix = c("O2FRRf", "Chl"), keep = FALSE)
-
-colnames(O2FRRfPool)
-```
-
-
 ```{r prelimplot}
-O2FRRfPool %>%
+O2FRRfAll %>%
   filter(Ex_WL == 445) %>%
   ggplot() +
   geom_point(aes(x = ActPARCorr, y = O2evln_O2ls, colour = as.factor(TempContO2))) +
@@ -254,7 +247,7 @@ O2FRRfPool %>%
   geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(Ex_WL)), method = "lm") +
   #scale_colour_manual(values = Colours_nm) +
   #facet_grid(rows = vars(Ex_WL)) +
-  coord_fixed(ratio = 1) +
+  #coord_fixed(ratio = 1) +
   theme_bw()
 
 O2FRRfPool %>%
@@ -263,17 +256,6 @@ O2FRRfPool %>%
   ggplot() +
   geom_point(aes(x = ETRqp, y = ETRCtauav, colour = as.factor(Ex_WL))) +
   geom_smooth(aes(x = ETRqp, y = ETRCtauav, colour = as.factor(Ex_WL)), method = "lm") +
-  #scale_colour_manual(values = Colours_nm) +
-  #facet_grid(rows = vars(Ex_WL)) +
-  coord_fixed(ratio = 1) +
-  theme_bw()
-
-O2FRRfPool %>%
-  filter(#Ex_WL == 445,
-         ActPARCorr != 0) %>%
-  ggplot() +
-  geom_point(aes(x = ETRqpOxbo, y = ETRqp, colour = as.factor(Ex_WL))) +
-  geom_smooth(aes(x = ETRqpOxbo, y = ETRqp, colour = as.factor(Ex_WL)), method = "lm") +
   #scale_colour_manual(values = Colours_nm) +
   #facet_grid(rows = vars(Ex_WL)) +
   coord_fixed(ratio = 1) +
@@ -325,6 +307,14 @@ All work for Ex_WL == 445 nm
 #Cross plots to compare different PSII ETR estimators
 
 Doug: Checked on arithmetic for JVPSII estimators; seem correct except possibly FoOxbo based upon Fomin instead of Fodark.
+
+
+```{r leftjoin ChloroDataAver to O2FRRfData}
+O2FRRfPool <- left_join(x = O2FRRfAll, y = ChloroDataAver, by = c("CultureID", c("ObsDate" = "DATE")), suffix = c("O2FRRf", "Chl"), keep = FALSE)
+
+colnames(O2FRRfPool)
+```
+
 ```{r ExWL blue JVPSII comparisons}
 
 O2FRRfPool %>%
