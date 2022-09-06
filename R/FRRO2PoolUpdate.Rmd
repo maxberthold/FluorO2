@@ -1,0 +1,751 @@
+---
+title: "FRRO2Pooled"
+author:
+- Douglas A. Campbell
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    keep_md: yes
+    fig_caption: yes
+    toc: TRUE
+    toc_float: TRUE
+csl: plos-one.csl
+---
+
+# To Do
+Run workflow with Mireille & Sylwia data
+
+# Done
+
+Do comparison of achieved PAR within the cuvette +/- TC.
+Do Mireille or Sylwia have this data.
+
+Does water differentially attenuate blue light?
+
+# Introduction
+Pool [O2] vs. FRRf data from multiple runs.
+
+i. Compare O2 l~-1~ s~-1~ slopes for each PAR to estimates of PSII ETR e- PSII~-1~ s~-1~ taken from FRR measures at that same PAR level.
+  This calibration can gives us an estimate of [PSII] because:
+  O2 l~-1~ s~-1~ = (e- PSII~-1~ s~-1~)/4 * [PSII], so
+  [PSII] = O2 l~-1~ s~-1~ * 4/(e- PSII~-1~ s~-1~)
+
+For a given sample [PSII] should be a constant; any change in O2 l~-1~ s~-1~ with increasing PAR or different Ex_WL should be driven solely by changes in e- PSII~-1~ s~-1~.
+If apparent [PSII] for a given sample changes this indicates issues with measurements, as for example recycling of electrons leaving PSII back to reduction of O2 induced under high light, which lowers measured O2 l~-1~ s~-1~.
+
+Other influences could include different levels of fluorescence from sources outside PSII generating differential distortions on the fluorescence based estimator of e- PSII~-1~ s~-1~.
+
+[PSII] is intrinsically interesting as a core element of photophysiology and cellular composition.  It also provides a reality check on other fluorescence based metrics.
+
+ii. Sort [PSII] by sample and compare to [Chl] for the same sample to test for consistency and detect systematic variations which could be used to filter downstream data.
+
+In principle we can then use [PSII] from a sample to calibrate a fluorescence estimator such as Fo/sigmaPSII from the same sample, which might be specific to a particular Ex_WL, or generalized.
+
+We can then generate JVPSII through:
+PSII ETR X {(Fo/sigmaPSII) ~ [PSII] x calibration}
+
+Calibration may be gain specific for fluorometer depending upon whether reported F levels are compensated for gain.
+Chelsea fluorometers auto-compensate for gain to give 'consistent' Fo readings, but I am not sure about the Solisense.
+
+iii. Compare O2 l~-1~ s~-1~  slopes for each PAR to direct  estimates of JVPSII e- L~-1~ s~-1~ taken directly from FRR measures using the aLHII approach.
+
+aLHII is the total effective absorbance cross section serving the pool of PSII in a volume of sample.
+
+{aLHII = sigmaPSII x [PSII] x calibration}
+
+  This direct calibration gives us a calibratable, fluorescence based estimate of e- L~-1~ s~-1~, for later comparison with growth rates, cell counts, etc.
+
+Import [Chl] data for screening results and generating [PSII]:[Chl].
+
+iv) Cross compare TC and noTC and report results to SCOR working group 156
+
+Add bibliography
+Add citations
+
+## Set Chunk Options
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+knitr::opts_chunk$set(fig.path='Figs/')
+```
+
+
+```{r load libraries} 
+# libraries; Note check actual dependencies
+library(tidyverse)
+library(lubridate)
+library(broom)
+#library(knitr)
+#library(zoo)
+library(googlesheets4)
+library(googledrive)
+```
+
+```{r set project variables}
+#"..", takes up a level in the directory path
+Project <- "FluorO2"
+#Temporary RunDate during auditing
+DataIn<- file.path("..","FitData")
+DataOut <- file.path("..", "ProcessData")
+#CatalogPath <- file.path("~/Dropbox/MURIS/MURIS_catalog.csv")
+ChloroGoogle <- "https://docs.google.com/spreadsheets/d/1yhmuv7V0clcLpqlsTYBMtfIcsS8Rp5yjtkRH2ktZwk0/edit#gid=0"
+
+
+#Chlorophyll RFU calibration
+#https://www.dropbox.com/sh/afag5s8oc5d7hpf/AABK56di0J5-5vVoFuIdvDJOa?dl=0
+
+#Does chl calibration refer to the extract or to the original sample with a fixed dilution of sample into extract?
+#Analytical Standard Used: Supelco Chlorophyll a Analytical Standard, ordered from Sigma (#96145-1MG). Standard Preparation: Standard was redissolved in 90% acetone to prepare a secondary standard of ~5000 µg Chl a liter-1. This secondary standard is stored at -20C and is used to prepare a five-point linear calibration curve.
+
+# Calibration Equation: (Value in RFU - [B]) / [M] = Value in µg Chl a / liter extraction solvent, where B is the intercept and M is the slope of the linear regression of the Chl a standard response.
+# We need to re-run the Turner Calibration and post XY data to GoogleSheet to re-validate these values
+RFUIntercept_ugL = 0.7656
+RFUSlope_ugL = 7.064
+```
+
+```{r set colours}
+Wavelengths_nm = c(445, 470, 505, 535, 590)
+Colours_nm = c("darkblue", "dodgerblue", "darkgreen", "yellowgreen",  "darkorange")
+
+
+names(Colours_nm) <- Wavelengths_nm
+Colours_nm
+
+#Colour blind friendly palette
+# blindcolours = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+```
+
+## Read Chlorophyll Data
+Dynamically generate Chlorophyll Calibration from GoogleSheet with Turner Calibration Values
+```{r read chlorophyll data}
+gs4_deauth()
+ChloroData <- read_sheet(ChloroGoogle)
+
+#convert DATE, TIME
+ChloroData <- ChloroData %>%
+  mutate(DATE = ymd(DATE))
+
+#volume correction for RFU
+#fine calibration table?
+
+#convert to Chla_ugL
+#Does chl calibration refer to the extract or to the original sample with a fixed dilution of sample into extract?
+
+#RFUIntercept_ugL = 0.7656
+#RFUSlope_ugL = 7.064
+
+ChloroData <- ChloroData %>%
+   mutate(Chl_dil = (Reading_rfu - RFUIntercept_ugL)/RFUSlope_ugL,
+          Chl_ugL = Chl_dil * ((SolventVol_ul + SampleVol_ul)/SampleVol_ul))
+
+#collapse Replicates
+ChloroDataAver <- ChloroData %>%
+  group_by(CultureID, DATE) %>%
+  summarize (Chl_ugL_mean = mean(Chl_ugL, na.rm = TRUE), .groups = "keep") %>%
+  ungroup()
+
+```
+
+## List O2FRRfData
+```{r}
+O2FRRfFiles <- list.files(path = DataIn, full.names = TRUE) %>%
+  str_subset(pattern = "Nest", negate = TRUE)
+
+O2FRRfFiles
+```
+
+Read in .Rmd manually and check for missing columns
+```{r}
+# All.list <- list(FluorO2_20211210_noTC_O2FRRfMeta, FluorO2_20211210_TC_O2FRRfMeta, FluorO2_20211213_noTC_O2FRRfMeta, FluorO2_20211213_TC_O2FRRfMeta)
+#  my_function <- function(data_frame){
+#      require(dplyr)
+#      x <- tibble(`var_name` = colnames(data_frame),
+#                  `var_type` = sapply(data_frame, class))
+#      return(x)
+#  }
+# 
+# 
+#  target <- lapply(1:length(All.list),function(i)my_function(All.list[[i]]) %>%
+#                       mutate(element =i)) %>%
+#      bind_rows() %>%
+#      spread(element, var_type)
+```
+
+
+## Read O2FRRfData
+Many blank rows; consider re-working FRRO2Compare.Rmd
+MetaData from MURIS previously merged with O2FRRf files.
+
+```{r read O2FRRfData}
+#issue with Character vs. Numeric for files 7-9 with column PQP_Size, source and mc 
+
+read_plus_rds = function(Flnm) {readRDS(Flnm) %>%
+    mutate(Filename = Flnm) %>%
+    select(-c(PQP_Size, source, mc))
+  }
+
+
+O2FRRfAll <- O2FRRfFiles %>%
+  map_df(~read_plus_rds(Flnm = .)) %>%
+  filter(!is.na(filenameO2)) %>%
+  select(
+    where(
+      ~!all(is.na(.x)) #remove irrelevant columns
+    )
+  )
+
+```
+
+
+```{r prelimplot}
+O2FRRfAll %>%
+  filter(Ex_WL == 445) %>%
+  ggplot() +
+  geom_point(aes(x = ActPARCorr, y = O2evln_O2ls, colour = as.factor(TempContO2))) +
+  #scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
+  theme_bw()
+
+
+O2FRRfPool %>%
+  filter(Dark1s == 0) %>%
+  ggplot() +
+  geom_point(aes(x = ActPARCorr, y = ETRqpOxbo, colour = as.factor(TempContO2))) +
+  geom_smooth(aes(x = ActPARCorr, y = ETRqpOxbo, colour = as.factor(TempContO2)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = ETRCtauav, y = ETRGorbo, colour = as.factor(TempContO2))) +
+  geom_smooth(aes(x = ETRCtauav, y = ETRGorbo, colour = as.factor(TempContO2)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  coord_fixed(ratio = 1) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(#Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = as.factor(Ex_WL)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  #coord_fixed(ratio = 1) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(#Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(Ex_WL)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  #coord_fixed(ratio = 1) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(#Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = ETRqp, y = ETRCtauav, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(x = ETRqp, y = ETRCtauav, colour = as.factor(Ex_WL)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  coord_fixed(ratio = 1) +
+  theme_bw()
+
+# ggplot() +
+#   #geom_point(aes(x = ActPARCorr, y = O2evln_O2ls, colour = Ex_WL)) +
+#   geom_point(aes(x = O2FRRfPool %>% filter(Dark1s == 0) %>% filter(TempContO2 == "noTC") %>% pull(JVPSII_aLHIIminmax), y =  O2FRRfPool %>% filter(Dark1s == 0) %>% filter(TempContO2 == "TC") %>% pull(JVPSII_aLHIIminmax))) +
+#   #scale_colour_manual(values = Colours_nm) +
+#   #facet_grid(cols = vars(CultureID)) +
+#   theme_bw()
+
+
+```
+
+Data exploration suggests:
+
+JVPSII_aLHII shows good patterns of linear increase with light, but is not absolutely calibrated and is not normalized to biomass ([Chl]).
+
+Linear increase with light is consistent with published cyanobacterial photophysiology that raw generation of e- at PSII increases steadily up to high light levels.
+
+Saturating patterns of rising O2 elvn with increasing light are consistent with e- leaving PSII, emitting 'gross O2', which is then nearly immediately taken back up through e- flow back to O2; 'pseudocyclic' e- flow.
+
+Discrepancy b/t JVPSII and O2 tells us about e- physiology across light levels (or among taxa x conditions).
+
+These discrepancies can also be analyzed comparing PSII ETR e- PSII-1 s-1 with O2 L-2 s-1.
+
+For calibration of JVPSII using O2 data, consider trimming to avoid light saturation region, particularly top light level with NoTC.
+
+O2evln_O2ls was calculated by subtracting average slope of start and end respiration rates, but there may still be arithmetic or grouping issues b/c at 0 PAR O2evln_O2ls is not always zero and some data sets show a large displacement from 0.
+Offsets particularly evident in runs with NoTC; runs with TC generally start ~0 indicating that initial and final respiration rates are similar.
+Large upward offsets from O in NoTC runs suggest acceleration of respiration during the run.
+
+Starting to wonder if calibrations should be run primarily (exclusively?) with TC.
+
+But, JVPSII is similar b/t TC and NoTC so calibration using TC should be transferrable to NoTC.
+
+Separate calibrations needed for x = O2evln_O2ls, y = JVPSII_aLHIIminmax for separate Ex_WL, indicating that Ex_WL differentially influences JVPSII_aLHIIminmax beyond the simple argument that PUR is higher for 590 nm than for 445 nm at a given PAR.
+
+x = JVPSII_aLHIIdark, y = JVPSII_aLHIIminmax shows that JVPSII_aLHIIdark is systematically higher than JVPSII_aLHIIminmax, even though they are tightly correlated.
+Different JVPSII need to be calibrated separately with O2 estimates.
+
+PSII opening metrics (qp etc.) indicate that tau based estimators of 'C' may degrade under high PUR, which, coincidentally, only occurs under Ex_WL = 590 nm.
+Alternately, tau based estimators may fail under 590 nm, but this seems less plausible b/c tau based estimates are taken from shape of a decay curve, and should not be influenced by fluorescence from outside PSII excited by 590 nm.
+
+For some downstream estimators we need to pick an estimator of 'C' (Fraction of PSII closed).
+All work for Ex_WL == 445 nm
+
+#Cross plots to compare different PSII ETR estimators
+
+Doug: Checked on arithmetic for JVPSII estimators; seem correct except possibly FoOxbo based upon Fomin instead of Fodark.
+
+
+```{r leftjoin ChloroDataAver to O2FRRfData}
+O2FRRfPool <- left_join(x = O2FRRfAll, y = ChloroDataAver, by = c("CultureID", c("ObsDate" = "DATE")), suffix = c("O2FRRf", "Chl"), keep = FALSE)
+
+colnames(O2FRRfPool)
+```
+
+```{r ExWL blue JVPSII comparisons}
+
+O2FRRfPool %>%
+  filter(
+         Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIminmax, colour = as.factor(TempContO2))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIminmax, colour = as.factor(TempContO2)), method = "lm") +
+  #facet_grid(rows = vars(Ex_WL)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(
+         Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIdark, colour = as.factor(TempContO2))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIdark, colour = as.factor(TempContO2)), method = "lm") +
+  #facet_grid(rows = vars(Ex_WL)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(
+         Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtau1, colour = as.factor(TempContO2))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtau1, colour = as.factor(TempContO2)), method = "lm") +
+  #facet_grid(rows = vars(Ex_WL)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(
+         Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo, colour = as.factor(TempContO2))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo, colour = as.factor(TempContO2)), method = "lm") +
+  #facet_grid(rows = vars(Ex_WL)) +
+  theme_bw()
+
+```
+
+# Facet ETRqp vs O2evln_O2ls by culture because different cultures have different [PSII]
+```{r ExWL blue PSII ETR comparisons by culture}
+
+O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         #Ex_WL == 445,
+         #TempContO2 == "noTC"
+         ) %>%
+  ggplot() +
+  geom_point(aes(y = O2evln_O2ls * 4, x = ETRqp, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(y = O2evln_O2ls  * 4, x = ETRqp), method = "lm") +
+  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         #Ex_WL == 445,
+         #TempContO2 == "noTC"
+         ) %>%
+  ggplot() +
+  geom_point(aes(y = O2evln_O2ls  * 4, x = ETRCtau1, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(y = O2evln_O2ls  * 4, x = ETRCtau1), method = "lm") +
+  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         #Ex_WL == 445,
+         #TempContO2 == "TC"
+         ) %>%
+  ggplot() +
+  geom_point(aes(y = O2evln_O2ls  * 4, x = ETRqp, colour = Ex_WL)) +
+  geom_smooth(aes(y = O2evln_O2ls  * 4, x = ETRqp), method = "lm") +
+  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
+  theme_bw()
+
+
+O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         #Ex_WL == 445,
+         TempContO2 == "TC") %>%
+  ggplot() +
+  geom_point(aes(y = O2evln_O2ls  * 4, x = ETRqp, colour = Ex_WL)) +
+  geom_smooth(aes(y = O2evln_O2ls  * 4, x = ETRqp), method = "lm") +
+  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
+  theme_bw()
+
+```
+
+#Extract [PSII] by fitting models of O2evln_O2ls vs. ETRqp
+445 nm and 590 nm data OK in principle for TC runs. In theory [PSII] does not change with excitation wavelength.
+Less scatter with 445 nm.
+
+Filter out MaBe3729 for 2021-12-10
+Decided to filter out PCC6803 for now; seems to have a different relation b/t O2 & ETRqp
+```{r}
+ChlMW_gmol <- 893
+umol_particles <- 6.022E17
+
+PSII <- O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         TempContO2 == "TC") %>% 
+  unite(IDCol, ObsDate, CultureID, remove = FALSE) %>%
+  #filter(IDCol != "2021-12-10MaBe3729") %>%
+#was unable to get filter(ObsDate != "2021-12-10" & CultureID != "MaBe3729")
+# to work even though filter(ObsDate == "2021-12-10" & CultureID == "MaBe3729")
+#gave the mirror image result
+
+#force linear models through 0 b/c we are excluding data where O2evln_O2ls <= 0 and at 0 PAR PSIIETR has to equal 0.
+  filter(strain != "PCC6803") %>%
+  nest(O2ETRdata = -c(ObsDate, CultureID, strain, Chl_ugL_mean)) %>% 
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls ~ 0 + ETRqp, data = .x), otherwise = NULL)),
+         O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
+  select(-c(O2ETRdata, O2ETRlm)) %>%
+  unnest(cols = O2ETRlm_tidy) %>%
+  filter(term  != "(Intercept)") %>%
+  select(-term) %>%
+  mutate(PSII_L = estimate * 4, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error * 4) %>%
+  mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
+         Chl_PSII =  Chl_L/PSII_L) #chl to molar
+
+PSIIex445 <- O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         TempContO2 == "TC",
+         Ex_WL == 445) %>% 
+         #filter(ObsDate != "2021-12-10" & CultureID != "MaBe3729") %>%
+  unite(IDCol, ObsDate, CultureID, remove = FALSE) %>%
+  #filter(IDCol != "2021-12-10MaBe3729") %>%
+  filter(strain != "PCC6803") %>%
+  nest(O2ETRdata = -c(ObsDate, CultureID,  strain, Chl_ugL_mean, Ex_WL)) %>% 
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls ~ 0 + ETRqp, data = .x), otherwise = NULL)),
+         O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
+  select(-c(O2ETRdata, O2ETRlm)) %>%
+  unnest(cols = O2ETRlm_tidy) %>%
+  filter(term  != "(Intercept)") %>%
+  select(-term) %>%
+  mutate(PSII_L = estimate * 4, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error * 4) %>%
+  mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
+         Chl_PSII = Chl_L/PSII_L) #chl to molar
+
+
+PSIIex590 <- O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         TempContO2 == "TC",
+         Ex_WL == 590) %>% 
+         #filter(ObsDate != "2021-12-10" & CultureID != "MaBe3729") %>%
+  unite(IDCol, ObsDate, CultureID, remove = FALSE) %>%
+  #filter(IDCol != "2021-12-10MaBe3729") %>%
+  filter(strain != "PCC6803") %>%
+  nest(O2ETRdata = -c(ObsDate, CultureID,  strain, Chl_ugL_mean, Ex_WL)) %>% 
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls ~ 0 +ETRqp, data = .x), otherwise = NULL)),
+         O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
+  select(-c(O2ETRdata, O2ETRlm)) %>%
+  unnest(cols = O2ETRlm_tidy) %>%
+  filter(term  != "(Intercept)") %>%
+  select(-term) %>%
+  mutate(PSII_L = estimate * 4, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error * 4) %>%
+  mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
+         Chl_PSII =  Chl_L/PSII_L) #chl to molar
+
+PSII
+PSIIex445
+PSIIex590
+
+#cross plots
+ggplot() +
+  geom_point(aes(x = PSIIex445$PSII_L, y = PSIIex590$PSII_L, colour = PSIIex445$strain)) +
+  geom_abline(intercept = 0, slope = 1) +
+  coord_fixed(ratio = 1) +
+  theme_bw()
+
+ggplot() +
+  geom_point(aes(y = PSIIex445$PSII_L, x = PSII$PSII_L, colour = PSIIex445$strain)) +
+  geom_abline(intercept = 0, slope = 1) +
+  coord_fixed(ratio = 1) +
+  theme_bw()
+```
+
+Some chlorophyll : PSII values seem to be off. 
+
+Either Algebra is off, or [Chl] is too high, or [PSII] is underestimated.
+Based upon reasonable range for [Chl], likely that [PSII] is sometimes underestimated?
+
+Filtered out problematic PCC6803 values; possible issue with light attenuation?
+Use PSIIex445 for now.
+
+```{r PSII vs. Chl}
+
+PSII %>%
+  filter(PSII_L > 0) %>% 
+  ggplot() +
+  geom_point(aes(y = Chl_L, x = PSII_L)) +
+  geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
+  theme_bw()
+
+PSIIex445 %>%
+  filter(PSII_L > 0) %>% 
+  ggplot() +
+  geom_point(aes(y = Chl_L, x = PSII_L, colour = CultureID)) +
+  geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
+  theme_bw()
+
+PSIIex590 %>%
+  filter(PSII_L > 0) %>% 
+  ggplot() +
+  geom_point(aes(y = Chl_L, x = PSII_L, colour = CultureID)) +
+  geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
+  theme_bw()
+```
+
+For PSIIex445
+7.5e17 Chl l-1 / 6 e14 PSII_L ~ 1250 Chl : PSII
+It should be in the range of 250 to 1500.
+
+Bottom up guesstimate:
+1 PSII : 2 PSI
+1 x (36 PSII chl) : 2 x (96 PSI chl)
+36 PSII chl + 192 PSI chl = 228 chl per PSII.
+
+1 x (36 PSII chl) : 3 x (96 PSI chl)
+324 chl per PSII,
+
+11250 chl per PSII implies
+
+11250 = (1 * 36 PSII chl) + (x * 96 PSI chl)
+(1250 - 36)/96
+Implies ~13 PSI : PSII
+This is at the upper end of plausibility for a cyanobacteria, and suggests an under-estimation of PSII content in our system.
+
+
+Another cross check:
+7.5e17 chl L-1 is 1.25 umol Chl L-1
+1.25 umol chl L-1 x 893 ug chl/umol chl = 1122 ug chl L-1 = 1.2 ug chl ml-1 which is  plausible for cultures which contain PBSomes, but probably a bit dark.
+
+#Calibrate Fo/SigmaPSII using [PSII] from Ex_WL = 445 nm
+```{r}
+O2FRRfPoolPSII <- left_join(x = O2FRRfPool %>% filter(Ex_WL == 445), y = PSIIex445, by = c("CultureID", "ObsDate"))
+
+O2FRRfPoolPSII %>% ggplot() +
+  geom_point(aes(x = Fomin/Sigmax, y = PSII_L, colour = CultureID)) + 
+  geom_smooth(aes(x = Fomin/Sigmax, y = PSII_L), method = "lm") +
+  theme_bw()
+
+O2FRRfPoolPSII %>% ggplot() +
+  geom_point(aes(x = Fodark/Sigdark, y = PSII_L, colour = CultureID)) + 
+  geom_smooth(aes(x = Fodark/Sigdark, y = PSII_L), method = "lm") +
+  theme_bw()
+```
+
+High scatter in attempt to calibrate Fomin/Sigmax with [PSII].
+May need additional runs?
+
+# Calibration of JVPSII with umol O2 L-1 s-1 * 4
+Note filters to restrict data set.
+```{r O2FRRfChlprelimplot}
+O2FRRfPool %>%
+  filter(
+         TempContO2 == "TC",
+         ActPARCorr != 0,
+         Ex_WL == 445,
+         O2evln_O2ls > 0,
+         strain != "PCC6803") %>%
+  ggplot() +
+  geom_point(aes(x = JVPSII_aLHIIminmax, y = O2evln_O2ls * 4, size = Chl_ugL_mean, colour = strain)) +
+  geom_smooth(aes(x = JVPSII_aLHIIminmax, y = O2evln_O2ls * 4, size = Chl_ugL_mean), method = "lm") +
+ facet_grid(rows = vars(Ex_WL), cols = vars(strain)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(
+         TempContO2 == "TC",
+         ActPARCorr != 0,
+         Ex_WL == 445,
+         O2evln_O2ls > 0,
+         strain != "PCC6803") %>%
+  ggplot() +
+  geom_point(aes(x = JVPSII_aLHIIminmax, y = O2evln_O2ls * 4, size = Chl_ugL_mean, colour = strain)) +
+  geom_smooth(aes(x = JVPSII_aLHIIminmax, y = O2evln_O2ls * 4, size = Chl_ugL_mean), method = "lm") +
+ facet_grid(rows = vars(Ex_WL)) +
+  theme_bw()
+
+```
+
+```{r lm PSIIETR_O2}
+#significant effect of strain
+#significant effect of Ex_WL
+#note filters to restrict dataset
+
+#force lm through 0 b/c at 0 PAR JVPSII = 0 and we are excluding data from PAR = 0
+# tidy(O2FRRfPool %>% 
+#   filter(
+#          TempContO2 == "TC",
+#          ActPARCorr != 0,
+#          Ex_WL == 445,
+#          O2evln_O2ls > 0) %>%
+#   filter(JVPSII_aLHIIminmax > 0) %>%
+#   lm(O2evln_O2ls * 4 ~ 0 + JVPSII_aLHIIminmax + strain, data = .))
+
+# tidy(O2FRRfPool %>% 
+#   filter(
+#          TempContO2 == "TC",
+#          ActPARCorr != 0,
+#          Ex_WL == 445,
+#          O2evln_O2ls > 0) %>%
+#   filter(JVPSII_aLHIIminmax > 0) %>%
+#   lm(O2evln_O2ls  * 4 ~ JVPSII_aLHIIminmax + Ex_WL + strain, data = .))
+
+# O2FRRfStrainNest <- O2FRRfPool %>%
+#   filter(
+#          TempContO2 == "TC",
+#          ActPARCorr != 0,
+#          Ex_WL == 445,
+#          O2evln_O2ls > 0) %>%
+#   filter(JVPSII_aLHIIminmax > 0) %>%
+#   nest(O2FRRf = -c(strain, Ex_WL)) %>%
+#   mutate(PSIIETRO2lm = map(O2FRRf, possibly(~ lm(O2evln_O2ls * 4 ~ 0 +  JVPSII_aLHIIminmax, data = .x), otherwise = NULL)),
+#          PSIIETRO2lm_tidy = map(PSIIETRO2lm, possibly(tidy, otherwise = NULL)))
+
+
+O2FRRf445_Nest <- O2FRRfPool %>%
+  filter(
+         TempContO2 == "TC",
+         ActPARCorr != 0,
+         Ex_WL == 445,
+         O2evln_O2ls > 0) %>%
+  filter(JVPSII_aLHIIminmax > 0) %>%
+  nest(O2FRRfdata = -c(Ex_WL)) %>%
+  mutate(PSIIETRO2lm = map(O2FRRfdata, possibly(~ lm(O2evln_O2ls * 4 ~ 0 +  JVPSII_aLHIIminmax, data = .x), otherwise = NULL)),
+         PSIIETRO2lm_tidy = map(PSIIETRO2lm, possibly(tidy, otherwise = NULL)))
+
+O2FRRf445lm <- O2FRRf445_Nest %>% 
+  unnest(PSIIETRO2lm_tidy)
+
+O2FRRf445_No6803Nest <- O2FRRfPool %>%
+  filter(
+         TempContO2 == "TC",
+         ActPARCorr != 0,
+         Ex_WL == 445,
+         O2evln_O2ls > 0) %>%
+  filter(JVPSII_aLHIIminmax > 0) %>%
+  filter(strain != "PCC6803") %>%
+  nest(O2FRRfdata = -c(Ex_WL)) %>%
+  mutate(PSIIETRO2lm = map(O2FRRfdata, possibly(~ lm(O2evln_O2ls * 4 ~ 0 +  JVPSII_aLHIIminmax, data = .x), otherwise = NULL)),
+         PSIIETRO2lm_tidy = map(PSIIETRO2lm, possibly(tidy, otherwise = NULL)))
+
+O2FRRf445_No6803lm <- O2FRRf445_No6803Nest %>% 
+  unnest(PSIIETRO2lm_tidy)
+
+#O2FRRf445_lms <- rbind(O2FRRf445lm, O2FRRf445_No6803lm
+                       
+bindAndSource <-  function(df1, df2) { 
+  df1$source <- as.character(match.call())[[2]]
+  df2$source <- as.character(match.call())[[3]]
+  rbind(df1, df2)
+} 
+
+O2FRRf_lms <- bindAndSource(O2FRRf445_Nest %>% 
+  unnest(PSIIETRO2lm_tidy), O2FRRf445_No6803Nest %>% 
+  unnest(PSIIETRO2lm_tidy))
+
+#alternative to 'nest' by Strain & Ex_WL to generate single nested dataframe
+# PSIIETR_O2_lm_445 <- tidy(O2FRRfPool %>%
+#   filter(
+#          TempContO2 == "TC",
+#          ActPARCorr != 0,
+#          Ex_WL == 445,
+#          O2evln_O2ls > 0) %>%
+#   filter(JVPSII_aLHIIminmax > 0) %>%
+#   filter(Ex_WL == "445") %>%
+#   lm(O2evln_O2ls * 4 ~ 0 + JVPSII_aLHIIminmax, data = .))
+
+# PSIIETR_O2_lm_445
+# 
+# PSIIETR_O2_lm_590 <- tidy(O2FRRfPool %>%
+#   filter(
+#          TempContO2 == "TC",
+#          ActPARCorr != 0,
+#          Ex_WL == 590,
+#          O2evln_O2ls > 0) %>%
+#   filter(JVPSII_aLHIIminmax > 0) %>%
+#   lm(O2evln_O2ls * 4 ~ 0 +  JVPSII_aLHIIminmax, data = .))
+# 
+# PSIIETR_O2_lm_590
+```
+
+```{r PSIIETR_O2_lm_plot}
+#{} around ggplot call allow us to use .$ to set Title etc. to values from filtered dataframe
+#note '.' in ggplot(.)
+
+O2FRRfPool_plot <- O2FRRfPool %>%
+  filter(Dark1s == 0) %>%
+  filter(O2evln_O2ls > 0) %>%
+  filter(JVPSII_aLHIIminmax > 0) %>%
+  filter(Ex_WL == 445) %>%
+         {
+  ggplot(.) +
+  geom_point(aes(x = JVPSII_aLHIIminmax, y = O2evln_O2ls * 4, size = Chl_ugL_mean, colour = strain)) +
+  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[1]) +
+  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[1] + O2FRRf_lms$std.error[1], linetype = "dotted") +
+  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[1] - O2FRRf_lms$std.error[1], linetype = "dotted") +
+  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[2], linetype = "dashed") +
+  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[2] + O2FRRf_lms$std.error[12], linetype = "dotted") +
+  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[2] - O2FRRf_lms$std.error[2], linetype = "dotted") +
+  labs(title =  paste("Ex_WL ", unique(.$Ex_WL), "nm"), subtitle = "Solid Regression all strains; Dashed excludes PCC6803") +
+  theme_bw()}
+
+
+ O2FRRfPool_plot
+```
+
+
+
+```{r save O2FRRfMeta}
+
+ggsave(filename = file.path(DataOut, "O2FRRfPool_plot.png"), plot = O2FRRfPool_plot)
+
+saveRDS(O2FRRf_lms, file.path(DataOut, paste(Project, "O2FRRf_lms.Rds", sep = "_"), fsep = .Platform$file.sep))
+```
+
+
