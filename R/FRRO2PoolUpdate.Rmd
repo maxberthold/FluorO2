@@ -208,7 +208,7 @@ O2FRRfAll %>%
   theme_bw()
 
 
-O2FRRfPool %>%
+O2FRRfAll %>%
   filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = ActPARCorr, y = ETRqpOxbo, colour = as.factor(TempContO2))) +
@@ -217,7 +217,7 @@ O2FRRfPool %>%
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
 
-O2FRRfPool %>%
+O2FRRfAll %>%
   filter(Ex_WL == 445,
          ActPARCorr != 0) %>%
   ggplot() +
@@ -228,38 +228,51 @@ O2FRRfPool %>%
   coord_fixed(ratio = 1) +
   theme_bw()
 
-O2FRRfPool %>%
+O2FRRfAll %>%
   filter(#Ex_WL == 445,
          ActPARCorr != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = as.factor(Ex_WL))) +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = as.factor(Ex_WL), size = ActPARCorr)) +
   geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = as.factor(Ex_WL)), method = "lm") +
   #scale_colour_manual(values = Colours_nm) +
   #facet_grid(rows = vars(Ex_WL)) +
   #coord_fixed(ratio = 1) +
   theme_bw()
 
-O2FRRfPool %>%
+O2FRRfAll %>%
   filter(#Ex_WL == 445,
          ActPARCorr != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(Ex_WL))) +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(Ex_WL), size = ActPARCorr)) +
   geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(Ex_WL)), method = "lm") +
   #scale_colour_manual(values = Colours_nm) +
   #facet_grid(rows = vars(Ex_WL)) +
   #coord_fixed(ratio = 1) +
   theme_bw()
 
-O2FRRfPool %>%
+
+O2FRRfAll %>%
   filter(#Ex_WL == 445,
          ActPARCorr != 0) %>%
   ggplot() +
-  geom_point(aes(x = ETRqp, y = ETRCtauav, colour = as.factor(Ex_WL))) +
-  geom_smooth(aes(x = ETRqp, y = ETRCtauav, colour = as.factor(Ex_WL)), method = "lm") +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = as.factor(Ex_WL), size = ActPARCorr)) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = as.factor(Ex_WL)), method = "lm") +
   #scale_colour_manual(values = Colours_nm) +
   #facet_grid(rows = vars(Ex_WL)) +
-  coord_fixed(ratio = 1) +
+  #coord_fixed(ratio = 1) +
   theme_bw()
+
+O2FRRfAll %>%
+  filter(#Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(Ex_WL), size = ActPARCorr)) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(Ex_WL)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  #coord_fixed(ratio = 1) +
+  theme_bw()
+
 
 # ggplot() +
 #   #geom_point(aes(x = ActPARCorr, y = O2evln_O2ls, colour = Ex_WL)) +
