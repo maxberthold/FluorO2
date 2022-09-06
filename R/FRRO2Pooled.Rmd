@@ -14,11 +14,12 @@ csl: plos-one.csl
 ---
 
 # To Do
-Find or redo comparison of achieved PAR within the cuvette +/- TC.
-Do Mireille or Sylwia have this data.
+Run workflow with Mireille & Sylwia data
 
-Do we need to redo comparison with spectroradiometer?
-Lena B. will bring one.
+# Done
+
+Do comparison of achieved PAR within the cuvette +/- TC.
+Do Mireille or Sylwia have this data.
 
 Does water differentially attenuate blue light?
 
@@ -86,7 +87,7 @@ Project <- "FluorO2"
 #Temporary RunDate during auditing
 DataIn<- file.path("..","FitData")
 DataOut <- file.path("..", "ProcessData")
-CatalogPath <- file.path("~/Dropbox/MURIS/MURIS_catalog.csv")
+#CatalogPath <- file.path("~/Dropbox/MURIS/MURIS_catalog.csv")
 ChloroGoogle <- "https://docs.google.com/spreadsheets/d/1yhmuv7V0clcLpqlsTYBMtfIcsS8Rp5yjtkRH2ktZwk0/edit#gid=0"
 
 
@@ -148,7 +149,9 @@ ChloroDataAver <- ChloroData %>%
 
 ## List O2FRRfData
 ```{r}
-O2FRRfFiles <- list.files(path = DataIn, full.names = TRUE)
+O2FRRfFiles <- list.files(path = DataIn, full.names = TRUE) %>%
+  str_subset(pattern = "Nest", negate = TRUE)
+
 O2FRRfFiles
 ```
 
@@ -175,18 +178,20 @@ Many blank rows; consider re-working FRRO2Compare.Rmd
 MetaData from MURIS previously merged with O2FRRf files.
 
 ```{r read O2FRRfData}
-read_plus_rds = function(Flnm) {readRDS(Flnm) %>% mutate(Filename = Flnm)
-           }
+#issue with Character vs. Numeric for files 7-9 with column PQP_Size, source and mc 
+
+read_plus_rds = function(Flnm) {readRDS(Flnm) %>%
+    mutate(Filename = Flnm) %>%
+    select(-c(PQP_Size, source, mc))
+  }
+
 
 O2FRRfAll <- O2FRRfFiles %>%
   map_df(~read_plus_rds(Flnm = .)) %>%
-  filter(!is.na(filenameO2))
-
-#remove irrelevant columns
-O2FRRfAll <- O2FRRfAll %>% 
+  filter(!is.na(filenameO2)) %>%
   select(
     where(
-      ~!all(is.na(.x))
+      ~!all(is.na(.x)) #remove irrelevant columns
     )
   )
 
@@ -196,6 +201,7 @@ O2FRRfAll <- O2FRRfAll %>%
 ```{r leftjoin ChloroDataAver to O2FRRfData}
 O2FRRfPool <- left_join(x = O2FRRfAll, y = ChloroDataAver, by = c("CultureID", c("ObsDate" = "DATE")), suffix = c("O2FRRf", "Chl"), keep = FALSE)
 
+colnames(O2FRRfPool)
 ```
 
 
