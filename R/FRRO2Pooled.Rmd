@@ -14,9 +14,6 @@ csl: plos-one.csl
 ---
 
 # To Do
-Run workflow on data from Sylwia & Mireille
-
-# Done
 Find or redo comparison of achieved PAR within the cuvette +/- TC.
 Do Mireille or Sylwia have this data.
 
@@ -27,7 +24,6 @@ Does water differentially attenuate blue light?
 
 # Introduction
 Pool [O2] vs. FRRf data from multiple runs.
-Generate calibrations and conversion factors for use with other FRRf runs from comparable data sets.
 
 i. Compare O2 l~-1~ s~-1~ slopes for each PAR to estimates of PSII ETR e- PSII~-1~ s~-1~ taken from FRR measures at that same PAR level.
   This calibration can gives us an estimate of [PSII] because:
@@ -90,7 +86,7 @@ Project <- "FluorO2"
 #Temporary RunDate during auditing
 DataIn<- file.path("..","FitData")
 DataOut <- file.path("..", "ProcessData")
-#CatalogPath <- file.path("~/Dropbox/MURIS/MURIS_catalog.csv")
+CatalogPath <- file.path("~/Dropbox/MURIS/MURIS_catalog.csv")
 ChloroGoogle <- "https://docs.google.com/spreadsheets/d/1yhmuv7V0clcLpqlsTYBMtfIcsS8Rp5yjtkRH2ktZwk0/edit#gid=0"
 
 
@@ -153,11 +149,10 @@ ChloroDataAver <- ChloroData %>%
 ## List O2FRRfData
 ```{r}
 O2FRRfFiles <- list.files(path = DataIn, full.names = TRUE)
-O2FRRfFiles <- str_subset(O2FRRfFiles,"Nest", negate = TRUE)
 O2FRRfFiles
 ```
 
-Read in .Rds manually and check for missing columns
+Read in .Rmd manually and check for missing columns
 ```{r}
 # All.list <- list(FluorO2_20211210_noTC_O2FRRfMeta, FluorO2_20211210_TC_O2FRRfMeta, FluorO2_20211213_noTC_O2FRRfMeta, FluorO2_20211213_TC_O2FRRfMeta)
 #  my_function <- function(data_frame){
@@ -183,10 +178,7 @@ MetaData from MURIS previously merged with O2FRRf files.
 read_plus_rds = function(Flnm) {readRDS(Flnm) %>% mutate(Filename = Flnm)
            }
 
-#1:6
-#10:24
-#Fix character vs. numeric  in PQP_Size 7, 8, 9 
-O2FRRfAll <- str_subset(O2FRRfFiles,"Nest", negate = TRUE)[-c(7,8,9)] %>%
+O2FRRfAll <- O2FRRfFiles %>%
   map_df(~read_plus_rds(Flnm = .)) %>%
   filter(!is.na(filenameO2))
 
@@ -209,18 +201,20 @@ O2FRRfPool <- left_join(x = O2FRRfAll, y = ChloroDataAver, by = c("CultureID", c
 
 ```{r prelimplot}
 O2FRRfPool %>%
-  filter(Ex_WL == 445) %>%
+  filter(Dark1s == 0,
+         Ex_WL == 445) %>%
   ggplot() +
-  geom_point(aes(x = ActPARCorr, y = O2evln_O2ls, colour = as.factor(TempContO2))) +
+  geom_point(aes(x = ActPAR, y = O2evln_O2ls, colour = as.factor(TempCont))) +
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
   theme_bw()
 
 
 O2FRRfPool %>%
+  filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = ActPARCorr, y = JVPSII_aLHIIOxbomax, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = ActPARCorr, y = JVPSII_aLHIIOxbomax, colour = as.factor(TempContO2)), method = "lm") +
+  geom_point(aes(x = ActPAR, y = JVPSII_aLHIIminmax, colour = as.factor(TempCont))) +
+  geom_smooth(aes(x = ActPAR, y = JVPSII_aLHIIminmax, colour = as.factor(TempCont)), method = "lm") +
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
@@ -228,52 +222,68 @@ O2FRRfPool %>%
 
 
 O2FRRfPool %>%
-  filter(Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(Dark1s == 0,
+         Ex_WL == 445,
+         ActPAR != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = as.factor(TempContO2)), method = "lm") +
-  #scale_colour_manual(values = Colours_nm) +
-  #facet_grid(rows = vars(Ex_WL)) +
-  #coord_fixed(ratio = 1) +
-  theme_bw()
-
-O2FRRfPool %>%
-  filter(#Ex_WL == 445,
-         ActPARCorr != 0) %>%
-  ggplot() +
-  geom_point(aes(x = ETRCtauav, y = ETRqpOxbo, colour = as.factor(Ex_WL))) +
-  geom_smooth(aes(x = ETRCtauav, y = ETRqpOxbo, colour = as.factor(Ex_WL)), method = "lm") +
+  geom_point(aes(x = JVPSII_aLHIIdark, y = JVPSII_aLHIIminmax, colour = as.factor(TempCont))) +
+  geom_smooth(aes(x = JVPSII_aLHIIdark, y = JVPSII_aLHIIminmax, colour = as.factor(TempCont)), method = "lm") +
   #scale_colour_manual(values = Colours_nm) +
   #facet_grid(rows = vars(Ex_WL)) +
   coord_fixed(ratio = 1) +
   theme_bw()
 
 O2FRRfPool %>%
-  filter(#Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(Dark1s == 0,
+         #Ex_WL == 445,
+         ActPAR != 0) %>%
   ggplot() +
-  geom_point(aes(x = ETRCtauav, y = ETRGorbo, colour = as.factor(Ex_WL))) +
-  geom_smooth(aes(x = ETRCtauav, y = ETRGorbo, colour = as.factor(Ex_WL)), method = "lm") +
+  geom_point(aes(x = ETRCtau1, y = ETRqp, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(x = ETRCtau1, y = ETRqp, colour = as.factor(Ex_WL)), method = "lm") +
   #scale_colour_manual(values = Colours_nm) +
   #facet_grid(rows = vars(Ex_WL)) +
   coord_fixed(ratio = 1) +
   theme_bw()
 
-# O2FRRfPool %>%
-#   filter(#Ex_WL == 445,
-#          ActPARCorr != 0) %>%
-#   ggplot() +
-#   geom_point(aes(x = ETRqpOxbo, y = ETRqp, colour = as.factor(Ex_WL))) +
-#   geom_smooth(aes(x = ETRqpOxbo, y = ETRqp, colour = as.factor(Ex_WL)), method = "lm") +
-#   #scale_colour_manual(values = Colours_nm) +
-#   #facet_grid(rows = vars(Ex_WL)) +
-#   coord_fixed(ratio = 1) +
-#   theme_bw()
+O2FRRfPool %>%
+  filter(Dark1s == 0,
+         #Ex_WL == 445,
+         ActPAR != 0) %>%
+  ggplot() +
+  geom_point(aes(x = ETRCtau1, y = ETRCtau2, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(x = ETRCtau1, y = ETRCtau2, colour = as.factor(Ex_WL)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  coord_fixed(ratio = 1) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(Dark1s == 0,
+         #Ex_WL == 445,
+         ActPAR != 0) %>%
+  ggplot() +
+  geom_point(aes(x = ETRqp, y = ETRCtau2, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(x = ETRqp, y = ETRCtau2, colour = as.factor(Ex_WL)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  coord_fixed(ratio = 1) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(Dark1s == 0,
+         #Ex_WL == 445,
+         ActPAR != 0) %>%
+  ggplot() +
+  geom_point(aes(x = ETRqpOxbo, y = ETRqp, colour = as.factor(Ex_WL))) +
+  geom_smooth(aes(x = ETRqpOxbo, y = ETRqp, colour = as.factor(Ex_WL)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  coord_fixed(ratio = 1) +
+  theme_bw()
 
 # ggplot() +
-#   #geom_point(aes(x = ActPARCorr, y = O2evln_O2ls, colour = Ex_WL)) +
-#   geom_point(aes(x = O2FRRfPool %>% filter(Dark1s == 0) %>% filter(TempContO2 == "noTC") %>% pull(JVPSII_aLHIIminmax), y =  O2FRRfPool %>% filter(Dark1s == 0) %>% filter(TempContO2 == "TC") %>% pull(JVPSII_aLHIIminmax))) +
+#   #geom_point(aes(x = ActPAR, y = O2evln_O2ls, colour = Ex_WL)) +
+#   geom_point(aes(x = O2FRRfPool %>% filter(Dark1s == 0) %>% filter(TempCont == "noTC") %>% pull(JVPSII_aLHIIminmax), y =  O2FRRfPool %>% filter(Dark1s == 0) %>% filter(TempCont == "TC") %>% pull(JVPSII_aLHIIminmax))) +
 #   #scale_colour_manual(values = Colours_nm) +
 #   #facet_grid(cols = vars(CultureID)) +
 #   theme_bw()
@@ -283,7 +293,7 @@ O2FRRfPool %>%
 
 Data exploration suggests:
 
-JVPSII_aLHIIOxbomax shows good patterns of linear increase with light, but is not absolutely calibrated and is not normalized to biomass ([Chl]).
+JVPSII_aLHII shows good patterns of linear increase with light, but is not absolutely calibrated and is not normalized to biomass ([Chl]).
 
 Linear increase with light is consistent with published cyanobacterial photophysiology that raw generation of e- at PSII increases steadily up to high light levels.
 
@@ -293,8 +303,7 @@ Discrepancy b/t JVPSII and O2 tells us about e- physiology across light levels (
 
 These discrepancies can also be analyzed comparing PSII ETR e- PSII-1 s-1 with O2 L-2 s-1.
 
-For calibration of JVPSII using O2 data, trim to avoid light saturation region, particularly top light level with NoTC.
-  Already done in FRRO2Compare.Rmd
+For calibration of JVPSII using O2 data, consider trimming to avoid light saturation region, particularly top light level with NoTC.
 
 O2evln_O2ls was calculated by subtracting average slope of start and end respiration rates, but there may still be arithmetic or grouping issues b/c at 0 PAR O2evln_O2ls is not always zero and some data sets show a large displacement from 0.
 Offsets particularly evident in runs with NoTC; runs with TC generally start ~0 indicating that initial and final respiration rates are similar.
@@ -311,59 +320,52 @@ Different JVPSII need to be calibrated separately with O2 estimates.
 
 PSII opening metrics (qp etc.) indicate that tau based estimators of 'C' may degrade under high PUR, which, coincidentally, only occurs under Ex_WL = 590 nm.
 Alternately, tau based estimators may fail under 590 nm, but this seems less plausible b/c tau based estimates are taken from shape of a decay curve, and should not be influenced by fluorescence from outside PSII excited by 590 nm.
-  Trimming at FRRO2Compare.Rmd largely eliminates this issue.
 
 For some downstream estimators we need to pick an estimator of 'C' (Fraction of PSII closed).
 All work for Ex_WL == 445 nm
 
 #Cross plots to compare different PSII ETR estimators
 
-Doug: Checked on arithmetic for JVPSII estimators; seem correct.
+Doug: Checked on arithmetic for JVPSII estimators; seem correct except possibly FoOxbo based upon Fomin instead of Fodark.
 ```{r ExWL blue JVPSII comparisons}
 
 O2FRRfPool %>%
-  filter(Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(Dark1s == 0,
+         Ex_WL == 445,
+         ActPAR != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = as.factor(TempContO2)), method = "lm") +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIminmax, colour = as.factor(TempCont))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIminmax, colour = as.factor(TempCont)), method = "lm") +
   #facet_grid(rows = vars(Ex_WL)) +
   theme_bw()
 
 O2FRRfPool %>%
-  filter(Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(Dark1s == 0,
+         Ex_WL == 445,
+         ActPAR != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = as.factor(TempContO2)), method = "lm") +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIdark, colour = as.factor(TempCont))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIdark, colour = as.factor(TempCont)), method = "lm") +
   #facet_grid(rows = vars(Ex_WL)) +
   theme_bw()
 
 O2FRRfPool %>%
-  filter(Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(Dark1s == 0,
+         Ex_WL == 445,
+         ActPAR != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav, colour = as.factor(TempContO2)), method = "lm") +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtau1, colour = as.factor(TempCont))) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtau1, colour = as.factor(TempCont)), method = "lm") +
   #facet_grid(rows = vars(Ex_WL)) +
   theme_bw()
 
 O2FRRfPool %>%
-  filter(Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(Dark1s == 0,
+         Ex_WL == 445,
+         ActPAR != 0) %>%
   ggplot() +
   geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo, colour = as.factor(TempCont))) +
   geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo, colour = as.factor(TempCont)), method = "lm") +
-  #facet_grid(rows = vars(Ex_WL)) +
-  theme_bw()
-
-
-O2FRRfPool %>%
-  filter(Ex_WL == 445,
-         ActPARCorr != 0) %>%
-  ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRGorbo, colour = as.factor(TempCont))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRGorbo, colour = as.factor(TempCont)), method = "lm") +
   #facet_grid(rows = vars(Ex_WL)) +
   theme_bw()
 
@@ -374,7 +376,7 @@ O2FRRfPool %>%
 
 O2FRRfPool %>%
   filter(Dark1s == 0,
-         ActPARCorr != 0,
+         ActPAR != 0,
          #Ex_WL == 445,
          #TempCont == "noTC"
          ) %>%
@@ -386,7 +388,7 @@ O2FRRfPool %>%
 
 O2FRRfPool %>%
   filter(Dark1s == 0,
-         ActPARCorr != 0,
+         ActPAR != 0,
          #Ex_WL == 445,
          #TempCont == "noTC"
          ) %>%
@@ -398,7 +400,7 @@ O2FRRfPool %>%
 
 O2FRRfPool %>%
   filter(Dark1s == 0,
-         ActPARCorr != 0,
+         ActPAR != 0,
          #Ex_WL == 445,
          #TempCont == "TC"
          ) %>%
@@ -411,7 +413,7 @@ O2FRRfPool %>%
 
 O2FRRfPool %>%
   filter(Dark1s == 0,
-         ActPARCorr != 0,
+         ActPAR != 0,
          #Ex_WL == 445,
          TempCont == "TC") %>%
   ggplot() +
@@ -434,7 +436,7 @@ umol_particles <- 6.022E17
 
 PSII <- O2FRRfPool %>%
   filter(Dark1s == 0,
-         ActPARCorr != 0,
+         ActPAR != 0,
          TempCont == "TC") %>% 
   unite(IDCol, ObsDate, CultureID, remove = FALSE) %>%
   #filter(IDCol != "2021-12-10MaBe3729") %>%
@@ -458,7 +460,7 @@ PSII <- O2FRRfPool %>%
 
 PSIIex445 <- O2FRRfPool %>%
   filter(Dark1s == 0,
-         ActPARCorr != 0,
+         ActPAR != 0,
          TempCont == "TC",
          Ex_WL == 445) %>% 
          #filter(ObsDate != "2021-12-10" & CultureID != "MaBe3729") %>%
@@ -480,7 +482,7 @@ PSIIex445 <- O2FRRfPool %>%
 
 PSIIex590 <- O2FRRfPool %>%
   filter(Dark1s == 0,
-         ActPARCorr != 0,
+         ActPAR != 0,
          TempCont == "TC",
          Ex_WL == 590) %>% 
          #filter(ObsDate != "2021-12-10" & CultureID != "MaBe3729") %>%
@@ -597,7 +599,7 @@ Note filters to restrict data set.
 O2FRRfPool %>%
   filter(Dark1s == 0,
          TempCont == "TC",
-         ActPARCorr != 0,
+         ActPAR != 0,
          Ex_WL == 445,
          O2evln_O2ls > 0,
          strain != "PCC6803") %>%
@@ -610,7 +612,7 @@ O2FRRfPool %>%
 O2FRRfPool %>%
   filter(Dark1s == 0,
          TempCont == "TC",
-         ActPARCorr != 0,
+         ActPAR != 0,
          Ex_WL == 445,
          O2evln_O2ls > 0,
          strain != "PCC6803") %>%
@@ -631,7 +633,7 @@ O2FRRfPool %>%
 # tidy(O2FRRfPool %>% 
 #   filter(Dark1s == 0,
 #          TempCont == "TC",
-#          ActPARCorr != 0,
+#          ActPAR != 0,
 #          Ex_WL == 445,
 #          O2evln_O2ls > 0) %>%
 #   filter(JVPSII_aLHIIminmax > 0) %>%
@@ -640,7 +642,7 @@ O2FRRfPool %>%
 # tidy(O2FRRfPool %>% 
 #   filter(Dark1s == 0,
 #          TempCont == "TC",
-#          ActPARCorr != 0,
+#          ActPAR != 0,
 #          Ex_WL == 445,
 #          O2evln_O2ls > 0) %>%
 #   filter(JVPSII_aLHIIminmax > 0) %>%
@@ -649,7 +651,7 @@ O2FRRfPool %>%
 # O2FRRfStrainNest <- O2FRRfPool %>%
 #   filter(Dark1s == 0,
 #          TempCont == "TC",
-#          ActPARCorr != 0,
+#          ActPAR != 0,
 #          Ex_WL == 445,
 #          O2evln_O2ls > 0) %>%
 #   filter(JVPSII_aLHIIminmax > 0) %>%
@@ -661,7 +663,7 @@ O2FRRfPool %>%
 O2FRRf445_Nest <- O2FRRfPool %>%
   filter(Dark1s == 0,
          TempCont == "TC",
-         ActPARCorr != 0,
+         ActPAR != 0,
          Ex_WL == 445,
          O2evln_O2ls > 0) %>%
   filter(JVPSII_aLHIIminmax > 0) %>%
@@ -675,7 +677,7 @@ O2FRRf445lm <- O2FRRf445_Nest %>%
 O2FRRf445_No6803Nest <- O2FRRfPool %>%
   filter(Dark1s == 0,
          TempCont == "TC",
-         ActPARCorr != 0,
+         ActPAR != 0,
          Ex_WL == 445,
          O2evln_O2ls > 0) %>%
   filter(JVPSII_aLHIIminmax > 0) %>%
@@ -703,7 +705,7 @@ O2FRRf_lms <- bindAndSource(O2FRRf445_Nest %>%
 # PSIIETR_O2_lm_445 <- tidy(O2FRRfPool %>%
 #   filter(Dark1s == 0,
 #          TempCont == "TC",
-#          ActPARCorr != 0,
+#          ActPAR != 0,
 #          Ex_WL == 445,
 #          O2evln_O2ls > 0) %>%
 #   filter(JVPSII_aLHIIminmax > 0) %>%
@@ -715,7 +717,7 @@ O2FRRf_lms <- bindAndSource(O2FRRf445_Nest %>%
 # PSIIETR_O2_lm_590 <- tidy(O2FRRfPool %>%
 #   filter(Dark1s == 0,
 #          TempCont == "TC",
-#          ActPARCorr != 0,
+#          ActPAR != 0,
 #          Ex_WL == 590,
 #          O2evln_O2ls > 0) %>%
 #   filter(JVPSII_aLHIIminmax > 0) %>%
