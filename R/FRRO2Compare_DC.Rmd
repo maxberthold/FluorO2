@@ -1,0 +1,682 @@
+---
+title: "FRRO2Compare"
+author:
+- Douglas A. Campbell
+- Maximilian Berthold
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    keep_md: yes
+    fig_caption: yes
+    toc: TRUE
+    toc_float: TRUE
+csl: plos-one.csl
+---
+
+# Introduction
+Compare [O2] to FRRf data.
+
+Define time windows defined by changes in PAR imposed by script from FRRf changes in PAR.
+For each run create a series of nests of [O2] data from optode for each PAR level and each TempCont setting.
+Trim [O2] data nests to remove first 35 rows (~ 35 s) of 180 rows (~ 180 s) to avoid initial induction period.
+Fit slopes of umol O2  l~-1~ s~-1~ for each PAR level nest.
+Generate estimates of gross umol O2  l~-1~ s~-1~ by subtracting dark respiration rates.
+  Initial and final O2 respiration rate estimators; average? chose?
+  
+Plot gross umol O2  l~-1~ s~-1~ vs. PAR to detect outliers.
+
+i. Compare O2 l~-1~ s~-1~ slopes for each PAR to estimates of PSII ETR e- PSII~-1~ s~-1~ taken from FRR measures at that same PAR level.
+  This calibration gives us an estimate of [PSII] because:
+  O2 l~-1~ s~-1~ = (e- PSII~-1~ s~-1~)/4 * [PSII], so
+  [PSII] = O2 l~-1~ s~-1~ * 4/(e- PSII~-1~ s~-1~)
+
+For a given sample [PSII] should be a constant; any change in O2 l~-1~ s~-1~ with increasing PAR or changing actinic light colour should be driven solely by changes in e- PSII~-1~ s~-1~.  If apparent [PSII] changes this indicates issues with measurements, as for example recycling of electrons leaving PSII back to reduction of O2 induced under high light, which lowers measured O2 l~-1~ s~-1~, or distortions under different excitation colours 450 nm vs. 590 nm.
+
+ii.  Comparing results from different samples and light levels and light qualities, generate calibration(s) for fluorescence based estimators of [PSII] like Fo/sigmaPSII.
+  
+iii. Compare O2 l~-1~ s~-1~  slopes for each PAR to estimates of JVPSII e- L~-1~ s~-1~ taken from FRR measures.
+  This direct calibration gives us a fluorescence based calibrated estimate of e- L~-1~ s~-1~, for later comparison with growth rates, cell counts, etc.
+
+# Set General Variable Values
+## Run specific variables start at Line 122
+
+## Set Chunk Options
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+knitr::opts_chunk$set(fig.path='Figs/')
+```
+
+```{r set general project variables}
+#"..", takes up a level in the directory path
+Project <- "FluorO2"
+
+DataInO2 <- file.path("..","ImportData", "Optode")
+DataInFRRf <- file.path("..","ImportData", "FRRf")
+DataOut <- file.path("..", "FitData")
+CatalogPath <- file.path("../MURIS/MURIS_catalog.csv")
+
+```
+
+```{r set constants}
+photons_umol = 6.022E17
+A2_m2 = 1E20
+us_s = 1000000
+```
+
+
+```{r load libraries} 
+# libraries; Note check actual dependencies
+library(tidyverse)
+library(lubridate)
+library(broom)
+#library(knitr)
+#library(zoo)
+library(googlesheets4)
+library(googledrive)
+```
+
+```{r set colours}
+Wavelengths_nm = c(445, 470, 505, 535, 590)
+Colours_nm = c("darkblue", "dodgerblue", "darkgreen", "yellowgreen",  "darkorange")
+
+
+names(Colours_nm) <- Wavelengths_nm
+Colours_nm
+
+```
+
+Import MetaData catalog from MURIS
+Improve this if we generalize the approach.
+```{r}
+# MetaData <- read_csv("../../MURIS_catalog.csv") #two levels from R-folder
+```
+
+
+This chunk reads in a MetaData catalog from googlesheets 
+```{r load Catalog, now as a google sheet}
+gs4_deauth()
+
+MetaData <- 
+read_sheet("https://docs.google.com/spreadsheets/d/1wik41fMOiiA1gxLGtU8y3zpkrY1rqdMqXqQZs__sf-E/edit?usp=sharing")
+
+#%>%
+# sheet is read in by sheet ID, obtained from the URL of the sheet.
+# read_sheet has an annoying "feature" to set the type of columns it can't parse to a list.
+# ggplot/dplyr doesn't like working with a dataframe of lists.
+ # In this case WL is set to a list since some values are numbers, some are strings, some are blank.
+# # # To fix this, first drop all rows missing WL, then unlist.
+# # # Must first drop NA rows since unlist will collapse NULL lists, then the unlisted WL is a shorter length than original WL column, which mutate doesn't like.
+# # 
+# 
+# # as.data.frame(MetaCatalog)
+```
+
+
+```{r read FRRf data across all runs}
+#Temporary RunDate during auditing
+RunDateFRRf <- "Refit"
+FRRfData <- readRDS(file = file.path(DataInFRRf, paste("FluorO2_", RunDateFRRf, "_SolFitsTrim.Rds", sep = "")))
+
+```
+
+# Set Run Specific Variables for each set of O2 Data; TC/noTC, RunDateOxy, StrainID
+
+```{r set run specific O2 variables}
+  #FRRf refit includes data from both dates
+RunDateOxy <- 20211210
+  #20211213 alternate date
+Cuvette <- "TC"
+StrainID <- "MaBe3729"
+
+```
+
+#ReFit FRRf data includes multiple run dates; filter to match selected O2 data
+```{r filter FRRfData}
+FRRfDataLight <- FRRfData %>%
+  filter(!is.na(LR_s)) %>%
+  filter(TempCont == Cuvette) %>%
+  filter(CultureID == StrainID) %>%
+  filter(Dark1s == 0) %>%
+  filter(ObsDate == ymd(RunDateOxy))
+
+```
+
+Read in Run Specific O2Data
+Make this more general as we accumulate more files.
+```{r read data}
+#temporary hack to cope with run date; replace with GREP? or map?
+O2Data <- readRDS(file = file.path(DataInO2, paste("FluorO2_",RunDateOxy, "_O2Data.Rds", sep = "")))
+
+```
+
+
+Remove missing rows, reconcile time formats
+```{r remove missing rows}
+O2Data <- O2Data %>%
+  filter(!is.na(LR_s)) %>%
+  filter(TempCont == Cuvette) %>%
+  filter(CultureID == StrainID) %>%
+  mutate(ObsDate = ymd(RunDate),
+         ObsTime = as.period(AbsTime),
+         Ex_WL = as.factor(Ex_WL))
+
+```
+
+```{r prelimplot}
+O2Data %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
+  #geom_point(aes(x = FRRfData$LR_s, y = FRRfData$JVPSII_aLHIIminmax)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  xlim(0, 1000) +
+  theme_bw()
+
+FRRfDataLight %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = ETRCtauav, colour = Ex_WL)) +
+  #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+FRRfDataLight %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = ETRqpOxbo, colour = Ex_WL)) +
+  #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+FRRfDataLight %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = ETRGorbo, colour = Ex_WL)) +
+  #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+FRRfDataLight %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRtauav_FoSig, colour = Ex_WL)) +
+  #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+FRRfDataLight %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRqpOxbo_FoSig, colour = Ex_WL)) +
+  #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+FRRfDataLight %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL)) +
+  #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+FRRfDataLight %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRqpOxbo_aLHII_Sig, colour = Ex_WL)) +
+  #geom_point(aes(x = O2Data$LR_s, y = O2Data$O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+```
+
+## Simple left_join, some times line up
+# Many blank rows after left join b/c most O2 rows do not have explicit FRRf row.  Possible problem if ObsTime gets out of sync b/t Optode & FRRf data captures
+```{r leftjoin}
+O2SlopeData <- left_join(x = O2Data, y = FRRfDataLight, by = c("ObsDate", "ObsTime", "CultureID", "Ex_WL", "TempCont"), suffix = c("O2", "FRRf"), keep = FALSE) %>%
+  select(-c("RFID_User_Data":"Dur.Wat", "SNR_raw", "FP1", "nm445":"IRCorr")) 
+
+
+#%>%
+  #filter(LR_sO2 < 1080)  #202112130850_MURIS_caloxy_MaBe3729_AL590_Ex590_noTC.txt had an error, where the same time showed up twice 08:57:50 because of an optode lag; left_join only copied respective FRRf dark phase, but not AL-phase --> double NULL instead of 40, 0; fixed by altering time in original file by some microseconds to 08:57:49 and 08:57:50
+
+
+```
+
+```{r O2FRRfprelimplot}
+O2SlopeData %>%
+  #filter(Dark1s == 0) %>%
+  ggplot() +
+  geom_point(aes(x = LR_sO2, y = O2_umolL, colour = Ex_WL)) +
+  geom_point(aes(x = LR_sO2, y = ActPARCorr), colour = "black") +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  #xlim(0, 1080) +
+  theme_bw()
+
+```
+
+Interpolate ActPARCorr estimates across entire time axis
+```{r interpolate FRRf estimates}
+#http://publish.illinois.edu/spencer-guerrero/2014/12/11/2-dealing-with-missing-data-in-r-omit-approx-or-spline-part-1/
+#https://dplyr.tidyverse.org/dev/articles/colwise.html
+#Interpolation causes problems with final rows that repeat last value.
+
+interpolate <- function(x){zoo::na.locf(x, na.rm = FALSE, fromLast = TRUE, type = "l", maxgap = Inf)}
+
+O2SlopeData <- O2SlopeData %>%
+  mutate(ActPARCorrinter = interpolate(ActPARCorr),
+         #Dark1sinter = interpolate(Dark1s), 
+         LR_sFRRfinter = interpolate(LR_sFRRf), .after = Temp_C)
+         
+         #ActPARCorr_photonsm2sinter = interpolate(ActPARCorr_photonsm2s),
+         #JVPSIIinter = interpolate(JVPSII_aLHIIminmax)
+
+# test <- O2SlopeData %>%
+#   filter(CultureID == "MaBe3433",
+#          #LR_sO2 < 450,
+#         Ex_WL == "590")
+# 
+# test %>%
+#    #filter(Dark1sinter == 0) %>%
+#    ggplot() +
+#   geom_point(aes(x = LR_sO2, y = O2_umolL, colour = Ex_WL)) +
+#  geom_point(aes(x = LR_sO2, y = ActPARCorrinter, colour = "black")) +
+#     geom_point(aes(x = LR_sO2, y = Dark1sinter), colour = "red") +
+#   scale_colour_manual(values = Colours_nm) +
+#   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+#   theme_bw()
+```
+
+Check whether ActPARCorrinter worked properly
+
+```{r O2FRRfprelimplot2}
+O2SlopeData %>%
+  ggplot() +
+  geom_point(aes(x = LR_sO2, y = O2_umolL, colour = Ex_WL)) +
+  geom_point(aes(x = LR_sO2, y = ActPARCorrinter), colour = "black") +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+#filter CultureID with negative O2slope throughout and with aberrant ActPARCorrinter
+#recheck with Max about FRRf file processing to recuperate ActPARCorrinter
+O2SlopeData %>%
+  #filter(CultureID != "MaBe3432") %>%
+  #filter(CultureID != "MaBe3431") %>%
+  #filter(CultureID != "MaBe3433" | Ex_WL != "590") %>%
+  #filter(CultureID %in% c("MaBe3433", "MaBe3436")) %>%
+  ggplot() +
+  geom_point(aes(x = LR_sO2, y = O2_umolL, colour = Ex_WL)) +
+  geom_point(aes(x = LR_sO2, y = ActPARCorrinter), colour = "black") +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+
+```
+
+Estimate O2 slopes over LR PAR step ranges
+Be careful with nesting!  Multiple steps at single ActPARCorrinter
+Filter out first 50 s of each ActPARCorrinter set to skip 'induction' phase.
+Filter out last 5 s to avoid Dark1s = 1 rows
+```{r O2slopes}
+induction_s = 50
+end_s = 175
+
+# GPP_model <- function(data) {
+#   (((O2_umolLs - min(O2_umolLs)) * 6.022e17), data = data)
+# }
+
+O2Slopes <- O2SlopeData %>%
+  #nest(O2data = -c(Date, CultureID, Ex_WL, filenameO2, ActPARCorrinter, LR_sFRRfinter)) %>% 
+    nest(O2data = -c(Date, ActPARCorrinter,LR_sFRRfinter, filenameO2,CultureID, FileTime, CultureID, FileTime, CultureID, AL_WL, Ex_WL, TempCont, ObsDate)) %>%
+  filter(!is.na(ActPARCorrinter)) %>%
+  #nest(O2data = c(Date, AbsTime, LR_sO2, O2_umolL, Temp_C, ActPARCorrinter, filenameO2)) %>%
+  mutate(O2lm = map(O2data,  possibly(~ lm(O2_umolL[induction_s:end_s] ~ as.numeric(AbsTime[induction_s:end_s]), data = .x), otherwise = NULL)),
+         O2lm_tidy = map(O2lm, possibly(tidy, otherwise = NULL))) %>%
+  select(-c(O2data, O2lm)) %>%
+  unnest(cols = O2lm_tidy) %>%
+  filter(term  != "(Intercept)") %>%
+  select(-term) %>%
+  rename(O2_umolLs = estimate) %>%
+  group_by(Date, filenameO2, CultureID, Ex_WL) %>% #careful with group_by; this only works with a single replication of each LR with 5 steps per LR starting and ending with 0; redo to average all O2_umolLs at PAR = 0
+  #mutate(O2evln_O2ls_OLD = (O2_umolLs - min(O2_umolLs)) * 6.022e17) %>%
+  mutate(O2evln_O2ls = ((O2_umolLs - mean(O2_umolLs[1], O2_umolLs[5]))* photons_umol)) %>%
+  # nest() %>%
+  # mutate(O2evln_O2ls = map(.x = data, .f = ~GPP_model)) #%>%
+  # mutate(O2evln_O2ls_ALT = map(.x = data, .f = ~((.x$O2_umolLs - mean(.x$O2_umolLs[1], .x$O2_umolLs[5]))))) %>%
+  ungroup()
+
+#Decide how to handle subtraction of dark O2 slopes to estimate gross O2 evln
+#mutate(O2evln_O2ls_ALT = (O2_umolLs - mean(O2_umolLs[1], O2_umolLs[5]))) %>%
+ #- (mean(O2_umolLs[1],O2_umolLs[5])))*6.022e17
+```
+
+```{r O2slopeplots}
+
+O2Slopes %>%
+  ggplot() +
+  geom_line(aes(x = ActPARCorrinter, y = O2_umolLs, colour = Ex_WL)) +
+    scale_colour_manual(values = Colours_nm) +
+    facet_grid(cols = vars(CultureID), rows = vars(Ex_WL)) +
+    theme_bw()
+
+O2Slopes %>%
+  ggplot() +
+  geom_line(aes(x = ActPARCorrinter, y = O2evln_O2ls, colour = Ex_WL)) +
+  #geom_line(aes(x = ActPARCorrinter, y = O2evln_O2ls_OLD, colour = "black")) +
+    scale_colour_manual(values = Colours_nm) +
+    facet_grid(cols = vars(CultureID), rows = vars(Ex_WL)) +
+    theme_bw()
+```
+
+Merge O2Slopes Data with FRRf Data and Catalog
+
+```{r}
+O2FRRfMeta <- left_join(x = FRRfData, y = O2Slopes, by = c(c("ObsDate" = "Date"),  "CultureID", "Ex_WL", "ActPARCorr" = "ActPARCorrinter"), suffix = c("FRRf", "O2"), keep = FALSE) %>%
+   left_join(x = ., y = MetaData, by = c("CultureID" = "id")) %>%
+  filter(O2evln_O2ls > 0) %>%
+  select(-c("tissue_treated_plate", "culture_inocul_L", "media_inocul_L", "target_media_id", "inoc_media_id", "nutrient_status", "imipenem_ug_mL", "cefoxitin_ug_mL", "meropenem_ug_mL", "ampicillin_ug_mL")) %>%
+  select(-c("RFID_User_Data": "Dur.Wat"))
+
+#%>%
+  #select((-c("Alp4QA", "Tau4QA"))) %>% #only if present
+  #mutate(TauQx = as.numeric(TauQx),
+        # Cx = as.numeric(Cx))
+```
+
+
+# Cross plots of O2 evolution and FRRf electron transport estimators
+```{r O2FRRfcrossplots}
+O2FRRfMeta %>%
+  filter(JVPSII_aLHIIOxbomax > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIOxbomax, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  theme_bw()
+
+
+O2FRRfMeta %>%
+  filter(ETRCtauav > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = ETRCtauav, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(ETRqpOxbo > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = ETRqpOxbo, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = ETRqpOxbo, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(ETRGorbo > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = ETRGorbo, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = ETRGorbo, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(JVPSII_ETRtauav_FoSig > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_FoSig, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(JVPSII_ETRqpOxbo_FoSig > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo_FoSig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo_FoSig, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(JVPSII_ETRtauav_aLHII_Sig > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(JVPSII_ETRqpOxbo_aLHII_Sig > 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo_aLHII_Sig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo_aLHII_Sig, colour = Ex_WL), method = "lm") +
+  #facet_grid(cols = vars(strain)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_bw()
+
+```
+
+For e- PSII-1 s-1 estimators like ETRqpOxbo, a plot vs. O2 evln_O2ls should give a linear regression.
+[PSII] = (O2 evln_O2ls * 4)/(e- PSII-1 s-1)
+
+Graphical Test for stability of [PSII] estimates.
+```{r PSIIstabilitytestplot}
+O2FRRfMeta %>%
+  filter(ETRqpOxbo > 0) %>%
+  ggplot() +
+  geom_point(aes(y  = (O2_umolLs * 4)/ETRqpOxbo, x = ActPARCorr, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(ETRqpOxbo > 0) %>%
+  ggplot() +
+  geom_point(aes(y  = (O2evln_O2ls * 4)/ETRqpOxbo, x = ActPARCorr, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  theme_bw()
+
+
+O2FRRfMeta %>%
+  filter(ETRCtauav > 0) %>%
+  ggplot() +
+  geom_point(aes(y  = (O2evln_O2ls * 4)/ETRCtauav, x = ActPARCorr, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  theme_bw()
+
+O2FRRfMeta %>%
+  filter(ETRGorbo > 0) %>%
+  ggplot() +
+  geom_point(aes(y  = (O2evln_O2ls * 4)/ETRGorbo, x = ActPARCorr, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  theme_bw()
+
+
+```
+
+Estimates of [PSII] should be stable vs. ActPARCorr because [PSII] does not change appreciably during duration of light response measure.
+If estimate of [PSII] change vs. ActPARCorr it indicates departures from assumptions in underlying data or estimators.
+
+Filter O2-evolution values that are lower under higher light, caused by photoinhibion/alternative O2-pathways?
+This may exclude reasonable values if low light values are exaggerated.
+```{r InhibitionFilter}
+O2FRRfMeta590 <- O2FRRfMeta %>%
+  filter(Ex_WL == 590) %>%
+  #filter(O2_umolLs < 0.05) %>% # for MaBe3729 20211210, TC
+  filter(O2evln_O2ls > lag(O2evln_O2ls) & ActPARCorr > lag(ActPARCorr)) #%>%
+  #filter(O2evln_O2ls > lead(O2evln_O2ls)) # for MaBe3726 20211210, noTC
+
+O2FRRfMeta445 <- O2FRRfMeta %>%
+  filter(Ex_WL == 445) %>%
+  #filter(LR_sFRRfinter != 733) %>% #MaBe3727 20211210, TC
+  #filter(LR_sFRRfinter != 732) %>% #for MaBe3726 20211210, noTC
+  filter(O2evln_O2ls > lag(O2evln_O2ls) & ActPARCorr > lag(ActPARCorr))
+
+O2FRRfMetaFilter <- rbind(O2FRRfMeta445, O2FRRfMeta590)
+
+```
+
+
+```{r InhibitionFilteredPSIIstabilitytestplot}
+O2FRRfMetaFilter %>%
+  filter(ETRqpOxbo > 0) %>%
+  ggplot() +
+  geom_point(aes(y  = (O2_umolLs * 4)/ETRqpOxbo, x = ActPARCorr, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  theme_bw()
+
+O2FRRfMetaFilter %>%
+  filter(ETRqpOxbo > 0) %>%
+  ggplot() +
+  geom_point(aes(y  = (O2evln_O2ls * 4)/ETRqpOxbo, x = ActPARCorr, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  theme_bw()
+
+O2FRRfMetaFilter %>%
+  filter(ETRCtauav > 0) %>%
+  ggplot() +
+  geom_point(aes(y  = (O2evln_O2ls * 4)/ETRCtauav, x = ActPARCorr, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  theme_bw()
+
+O2FRRfMetaFilter %>%
+  filter(ETRGorbo > 0) %>%
+  ggplot() +
+  geom_point(aes(y  = (O2evln_O2ls * 4)/ETRGorbo, x = ActPARCorr, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(strain)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  theme_bw()
+
+```
+
+
+# Fit regressions of FRRf estimators vs. O2evln
+```{r FRRFO2regressions}
+#include representative 'augment' for test plots
+
+O2FRRfMetaNest <-  O2FRRfMetaFilter %>%
+  nest(data = -c(Ex_WL)) %>%
+  mutate(
+  JVPSII_aLHIIOxbomax_O2 = map(data, possibly(~lm(JVPSII_aLHIIOxbomax ~ O2evln_O2ls, data = .x), otherwise = NULL)),
+  JVPSII_aLHIIOxbomax_O2_tidied =  map(JVPSII_aLHIIOxbomax_O2, possibly(tidy, otherwise = NULL)),
+  JVPSII_aLHIIOxbomax_O2_param = map(JVPSII_aLHIIOxbomax_O2, possibly(glance, otherwise = NULL)),
+  ETRCtauav_O2 = map(data, possibly(~lm(ETRCtauav ~ O2evln_O2ls, data = .x), otherwise = NULL)),
+  ETRCtauav_O2_tidied =  map(ETRCtauav_O2, possibly(tidy, otherwise = NULL)),
+  ETRCtauav_O2_predict =  map(ETRCtauav_O2, possibly(augment, otherwise = NULL)),
+  ETRCtauav_O2_param = map(ETRCtauav_O2, possibly(glance, otherwise = NULL)),
+  ETRqpOxbo_O2 = map(data, possibly(~lm(ETRqpOxbo ~ O2evln_O2ls, data = .x), otherwise = NULL)),
+  ETRqpOxbo_O2_tidied =  map(ETRqpOxbo_O2, possibly(tidy, otherwise = NULL)),
+  ETRqpOxbo_O2_param = map(ETRqpOxbo_O2, possibly(glance, otherwise = NULL)),
+  ETRGorbo_O2 = map(data, possibly(~lm(ETRGorbo ~ O2evln_O2ls, data = .x), otherwise = NULL)),
+  ETRGorbo_O2_tidied =  map(ETRGorbo_O2, possibly(tidy, otherwise = NULL)),
+  ETRGorbo_O2_param = map(ETRGorbo_O2, possibly(glance, otherwise = NULL)),
+  JVPSII_ETRtauav_FoSig_O2 = map(data, possibly(~lm(JVPSII_ETRtauav_FoSig ~ O2evln_O2ls, data = .x), otherwise = NULL)),
+  JVPSII_ETRtauav_FoSig_O2_tidied =  map(JVPSII_ETRtauav_FoSig_O2, possibly(tidy, otherwise = NULL)),
+  JVPSII_ETRtauav_FoSig_O2_param = map(JVPSII_ETRtauav_FoSig_O2, possibly(glance, otherwise = NULL)),
+   JVPSII_ETRqpOxbo_FoSig_O2 = map(data, possibly(~lm(JVPSII_ETRqpOxbo_FoSig ~ O2evln_O2ls, data = .x), otherwise = NULL)),
+  JVPSII_ETRqpOxbo_FoSig_O2_tidied =  map(JVPSII_ETRqpOxbo_FoSig_O2, possibly(tidy, otherwise = NULL)),
+  JVPSII_ETRqpOxbo_FoSig_O2_param = map(JVPSII_ETRqpOxbo_FoSig_O2, possibly(glance, otherwise = NULL)),
+  JVPSII_ETRtauav_aLHII_Sig_O2 = map(data, possibly(~lm(JVPSII_ETRtauav_aLHII_Sig ~ O2evln_O2ls, data = .x), otherwise = NULL)),
+  JVPSII_ETRtauav_aLHII_Sig_O2_tidied =  map(JVPSII_ETRtauav_aLHII_Sig_O2, possibly(tidy, otherwise = NULL)),
+  JVPSII_ETRtauav_aLHII_Sig_O2_param = map(JVPSII_ETRtauav_aLHII_Sig_O2, possibly(glance, otherwise = NULL)),
+  JVPSII_ETRqpOxbo_aLHII_Sig_O2 = map(data, possibly(~lm(JVPSII_ETRqpOxbo_aLHII_Sig ~ O2evln_O2ls, data = .x), otherwise = NULL)),
+  JVPSII_ETRqpOxbo_aLHII_Sig_O2_tidied =  map(JVPSII_ETRqpOxbo_aLHII_Sig_O2, possibly(tidy, otherwise = NULL)),
+  JVPSII_ETRqpOxbo_aLHII_Sig_O2_param = map(JVPSII_ETRqpOxbo_aLHII_Sig_O2, possibly(glance, otherwise = NULL))
+  )
+
+
+
+O2FRRfMetaNest %>%
+  unnest(ETRCtauav_O2_predict) %>%
+  ggplot() +
+  geom_line(aes(x = O2evln_O2ls, y = .fitted), colour = "black", linetype = "dashed") +
+ #geom_line(aes(x = O2evln_O2ls, y = .fitted + .se.fit), colour = "grey", linetype = "dashed") +
+ #geom_line(aes(x = O2evln_O2ls, y = .fitted - .se.fit), colour = "grey", linetype = "dashed") +
+  geom_point(aes(x = O2evln_O2ls, y = ETRCtauav),colour = "darkgreen") +
+  geom_point(aes(x = O2evln_O2ls, y = .resid), colour = "darkred", size = 0.1) +
+  geom_hline(yintercept = 0,linetype = "dashed") +
+  facet_grid(cols = vars(Ex_WL)) +
+  theme_bw()
+# 
+# # O2FRRfMetaNest %>%
+# #   unnest(JVPSII_O2_predict_alt) %>%
+# #   ggplot() +
+# #   geom_line(aes(x = O2evln_O2ls_ALT, y = .fitted), colour = "black", linetype = "dashed") +
+# #  # geom_line(aes(x = O2evln_O2ls, y = .fitted + .se.fit), colour = "grey", linetype = "dashed") +
+# #  #   geom_line(aes(x = O2evln_O2ls, y = .fitted - .se.fit), colour = "grey", linetype = "dashed") +
+# #   geom_point(aes(x = O2evln_O2ls_ALT, y = JVPSII_aLHIIminmax),colour = "darkgreen") +
+# #   geom_point(aes(x = O2evln_O2ls_ALT, y = .resid), colour = "darkred", size = 0.1) +
+# #   geom_hline(yintercept = 0,linetype = "dashed") +
+# #   facet_grid(cols = vars(Ex_WL)) +
+# #   theme_bw()
+# 
+# O2FRRfMetaNest %>%
+#   unnest(JVPSII_O2_tidied)#, JVPSII_O2_tidied_alt) 
+# 
+# O2FRRfMetaNest %>%
+#   unnest(JVPSII_ETRqpOxbo_O2_predict) %>%
+#   ggplot() +
+#   geom_line(aes(x = O2evln_O2ls, y = .fitted), colour = "black", linetype = "dashed") +
+#  # geom_line(aes(x = O2evln_O2ls, y = .fitted + .se.fit), colour = "grey", linetype = "dashed") +
+#  #   geom_line(aes(x = O2evln_O2ls, y = .fitted - .se.fit), colour = "grey", linetype = "dashed") +
+#   geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo),colour = "darkgreen") +
+#   geom_point(aes(x = O2evln_O2ls, y = .resid), colour = "darkred", size = 0.1) +
+#   geom_hline(yintercept = 0,linetype = "dashed") +
+#   facet_grid(cols = vars(Ex_WL)) +
+#   theme_bw()
+
+# O2FRRfMetaNest %>%
+#   unnest(JVPSII_ETRqpOxbo_O2_predict_alt) %>%
+#   ggplot() +
+#   geom_line(aes(x = O2evln_O2ls_ALT, y = .fitted), colour = "black", linetype = "dashed") +
+#  # geom_line(aes(x = O2evln_O2ls, y = .fitted + .se.fit), colour = "grey", linetype = "dashed") +
+#  #   geom_line(aes(x = O2evln_O2ls, y = .fitted - .se.fit), colour = "grey", linetype = "dashed") +
+#   geom_point(aes(x = O2evln_O2ls_ALT, y = JVPSII_ETRqpOxbo),colour = "darkgreen") +
+#   geom_point(aes(x = O2evln_O2ls_ALT, y = .resid), colour = "darkred", size = 0.1) +
+#   geom_hline(yintercept = 0,linetype = "dashed") +
+#   facet_grid(cols = vars(Ex_WL)) +
+#   theme_bw()
+
+
+```
+
+
+```{r save O2FRRfMeta}
+saveRDS(O2FRRfMetaFilter, file.path(DataOut, paste(Project, RunDateOxy, Cuvette, StrainID, "O2FRRfMeta.Rds", sep = "_"), fsep = .Platform$file.sep))
+
+saveRDS(O2FRRfMetaNest, file.path(DataOut, paste(Project, RunDateOxy, Cuvette, StrainID, "O2FRRfMetaNest.Rds", sep = "_"), fsep = .Platform$file.sep))
+
+```
+
+
