@@ -85,7 +85,7 @@ library(googledrive)
 #"..", takes up a level in the directory path
 Project <- "FluorO2"
 #Temporary RunDate during auditing
-DataIn<- file.path("..","FitData")
+DataIn<- file.path("..","ReFitData")
 DataOut <- file.path("..", "ProcessData")
 #CatalogPath <- file.path("~/Dropbox/MURIS/MURIS_catalog.csv")
 ChloroGoogle <- "https://docs.google.com/spreadsheets/d/1yhmuv7V0clcLpqlsTYBMtfIcsS8Rp5yjtkRH2ktZwk0/edit#gid=0"
@@ -217,6 +217,16 @@ O2FRRfAll %>%
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
 
+O2FRRfAll %>%
+  filter(Ex_WL == 445,
+         ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = ETRCtauav, y = ETRGorbo, colour = as.factor(TempContO2))) +
+  geom_smooth(aes(x = ETRCtauav, y = ETRGorbo, colour = as.factor(TempContO2)), method = "lm") +
+  #scale_colour_manual(values = Colours_nm) +
+  #facet_grid(rows = vars(Ex_WL)) +
+  coord_fixed(ratio = 1) +
+  theme_bw()
 
 O2FRRfAll %>%
   filter(#Ex_WL == 445,
@@ -240,6 +250,7 @@ O2FRRfAll %>%
   #coord_fixed(ratio = 1) +
   theme_bw()
 
+
 O2FRRfAll %>%
   filter(#Ex_WL == 445,
          ActPARCorr != 0) %>%
@@ -261,6 +272,15 @@ O2FRRfAll %>%
   #facet_grid(rows = vars(Ex_WL)) +
   #coord_fixed(ratio = 1) +
   theme_bw()
+
+
+# ggplot() +
+#   #geom_point(aes(x = ActPARCorr, y = O2evln_O2ls, colour = Ex_WL)) +
+#   geom_point(aes(x = O2FRRfPool %>% filter(Dark1s == 0) %>% filter(TempContO2 == "noTC") %>% pull(JVPSII_aLHIIminmax), y =  O2FRRfPool %>% filter(Dark1s == 0) %>% filter(TempContO2 == "TC") %>% pull(JVPSII_aLHIIminmax))) +
+#   #scale_colour_manual(values = Colours_nm) +
+#   #facet_grid(cols = vars(CultureID)) +
+#   theme_bw()
+
 
 ```
 
