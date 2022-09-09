@@ -332,7 +332,8 @@ colnames(O2FRRfPool)
 ```{r JVPSII_Chl vs O2_chl comparisons}
 
 O2FRRfPool %>%
-  filter(ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0,
+         TempContO2 == "TC") %>%
   ggplot() +
   geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_aLHIIOxbomax/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
   geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_aLHIIOxbomax/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
@@ -340,7 +341,8 @@ O2FRRfPool %>%
   theme_bw()
 
 O2FRRfPool %>%
-  filter(ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0,
+         TempContO2 == "TC") %>%
   ggplot() +
   geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRtauav_FoSig/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
   geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRtauav_FoSig/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
@@ -348,7 +350,8 @@ O2FRRfPool %>%
   theme_bw()
 
 O2FRRfPool %>%
-  filter(ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0,
+         TempContO2 == "TC") %>%
   ggplot() +
   geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRqpOxbo_FoSig/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
   geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRqpOxbo_FoSig/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
@@ -356,7 +359,8 @@ O2FRRfPool %>%
   theme_bw()
 
 O2FRRfPool %>%
-  filter(ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0,
+         TempContO2 == "TC") %>%
   ggplot() +
   geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRtauav_aLHII_Sig/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
   geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRtauav_aLHII_Sig/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
@@ -364,7 +368,8 @@ O2FRRfPool %>%
   theme_bw()
 
 O2FRRfPool %>%
-  filter(ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0,
+         TempContO2 == "TC") %>%
   ggplot() +
   geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRqpOxbo_aLHII_Sig/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
   geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRqpOxbo_aLHII_Sig/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
@@ -372,19 +377,40 @@ O2FRRfPool %>%
   theme_bw()
 ```
 
-# Facet ETRqp vs O2evln_O2ls by culture because different cultures have different [PSII]
+# Facet ETR vs O2evln_O2ls by culture because different cultures have different [PSII]
 ```{r ExWL blue PSII ETR comparisons by culture}
 
 O2FRRfPool %>%
-  filter(
-         ActPARCorr != 0,
+  filter(ActPARCorr != 0,
          #Ex_WL == 445,
          #TempContO2 == "noTC"
          ) %>%
   ggplot() +
-  geom_point(aes(y = O2evln_O2ls * 4, x = ETRqp, colour = as.factor(Ex_WL))) +
-  geom_smooth(aes(y = O2evln_O2ls  * 4, x = ETRqp), method = "lm") +
-  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
+  geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean * 4, y = ETRqpOxbo, colour = as.factor(Ex_WL), size = ActPARCorr)) +
+  geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean  * 4, y = ETRqpOxbo), method = "lm") +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID, ObsDate)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(ActPARCorr != 0,
+         #Ex_WL == 445,
+         #TempContO2 == "noTC"
+         ) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean * 4, y = ETRCtauav, colour = as.factor(Ex_WL), size = ActPARCorr)) +
+  geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean  * 4, y = ETRCtauav), method = "lm") +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID, ObsDate)) +
+  theme_bw()
+
+O2FRRfPool %>%
+  filter(ActPARCorr != 0,
+         #Ex_WL == 445,
+         #TempContO2 == "noTC"
+         ) %>%
+  ggplot() +
+  geom_point(aes(y = O2evln_O2ls/Chl_ugL_mean * 4, x = ETRGorbo, colour = as.factor(Ex_WL), size = ActPARCorr)) +
+  geom_smooth(aes(y = O2evln_O2ls/Chl_ugL_mean  * 4, x = ETRGorbo), method = "lm") +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID, ObsDate)) +
   theme_bw()
 
 O2FRRfPool %>%
@@ -425,19 +451,18 @@ O2FRRfPool %>%
 
 ```
 
-#Extract [PSII] by fitting models of O2evln_O2ls vs. ETRqp
+#Extract [PSII] by fitting models of O2evln_O2ls vs. ETR
 445 nm and 590 nm data OK in principle for TC runs. In theory [PSII] does not change with excitation wavelength.
 Less scatter with 445 nm.
 
 Filter out MaBe3729 for 2021-12-10
 Decided to filter out PCC6803 for now; seems to have a different relation b/t O2 & ETRqp
-```{r}
+```{r PSII from ETRCtauav}
 ChlMW_gmol <- 893
 umol_particles <- 6.022E17
 
-PSII <- O2FRRfPool %>%
-  filter(
-         ActPARCorr != 0,
+PSIICtauav <- O2FRRfPool %>%
+  filter(ActPARCorr != 0,
          TempContO2 == "TC") %>% 
   unite(IDCol, ObsDate, CultureID, remove = FALSE) %>%
   #filter(IDCol != "2021-12-10MaBe3729") %>%
@@ -448,18 +473,18 @@ PSII <- O2FRRfPool %>%
 #force linear models through 0 b/c we are excluding data where O2evln_O2ls <= 0 and at 0 PAR PSIIETR has to equal 0.
   filter(strain != "PCC6803") %>%
   nest(O2ETRdata = -c(ObsDate, CultureID, strain, Chl_ugL_mean)) %>% 
-  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls ~ 0 + ETRqp, data = .x), otherwise = NULL)),
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls * 4 ~ 0 + ETRCtauav, data = .x), otherwise = NULL)),
          O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
   select(-c(O2ETRdata, O2ETRlm)) %>%
   unnest(cols = O2ETRlm_tidy) %>%
   filter(term  != "(Intercept)") %>%
   select(-term) %>%
-  mutate(PSII_L = estimate * 4, #check if divided by 4 is the right thing to do
-         PSII_L_se = std.error * 4) %>%
+  mutate(PSII_L = estimate, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error) %>%
   mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
          Chl_PSII =  Chl_L/PSII_L) #chl to molar
 
-PSIIex445 <- O2FRRfPool %>%
+PSIICtauav_ex445 <- O2FRRfPool %>%
   filter(
          ActPARCorr != 0,
          TempContO2 == "TC",
@@ -469,19 +494,19 @@ PSIIex445 <- O2FRRfPool %>%
   #filter(IDCol != "2021-12-10MaBe3729") %>%
   filter(strain != "PCC6803") %>%
   nest(O2ETRdata = -c(ObsDate, CultureID,  strain, Chl_ugL_mean, Ex_WL)) %>% 
-  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls ~ 0 + ETRqp, data = .x), otherwise = NULL)),
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls * 4 ~ 0 + ETRCtauav, data = .x), otherwise = NULL)),
          O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
   select(-c(O2ETRdata, O2ETRlm)) %>%
   unnest(cols = O2ETRlm_tidy) %>%
   filter(term  != "(Intercept)") %>%
   select(-term) %>%
-  mutate(PSII_L = estimate * 4, #check if divided by 4 is the right thing to do
-         PSII_L_se = std.error * 4) %>%
+  mutate(PSII_L = estimate, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error) %>%
   mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
          Chl_PSII = Chl_L/PSII_L) #chl to molar
 
 
-PSIIex590 <- O2FRRfPool %>%
+PSIICtauav_ex590 <- O2FRRfPool %>%
   filter(
          ActPARCorr != 0,
          TempContO2 == "TC",
@@ -491,36 +516,31 @@ PSIIex590 <- O2FRRfPool %>%
   #filter(IDCol != "2021-12-10MaBe3729") %>%
   filter(strain != "PCC6803") %>%
   nest(O2ETRdata = -c(ObsDate, CultureID,  strain, Chl_ugL_mean, Ex_WL)) %>% 
-  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls ~ 0 +ETRqp, data = .x), otherwise = NULL)),
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls * 4 ~ 0 + ETRCtauav, data = .x), otherwise = NULL)),
          O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
   select(-c(O2ETRdata, O2ETRlm)) %>%
   unnest(cols = O2ETRlm_tidy) %>%
   filter(term  != "(Intercept)") %>%
   select(-term) %>%
-  mutate(PSII_L = estimate * 4, #check if divided by 4 is the right thing to do
-         PSII_L_se = std.error * 4) %>%
+  mutate(PSII_L = estimate, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error) %>%
   mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
          Chl_PSII =  Chl_L/PSII_L) #chl to molar
 
-PSII
-PSIIex445
-PSIIex590
+PSIICtauav
+PSIICtauav_ex445
+PSIICtauav_ex590
 
 #cross plots
 ggplot() +
-  geom_point(aes(x = PSIIex445$PSII_L, y = PSIIex590$PSII_L, colour = PSIIex445$strain)) +
+  geom_point(aes(x = PSIICtauav_ex445$PSII_L, y = PSIICtauav_ex590$PSII_L, colour = PSIICtauav_ex445$strain)) +
   geom_abline(intercept = 0, slope = 1) +
   coord_fixed(ratio = 1) +
   theme_bw()
 
-ggplot() +
-  geom_point(aes(y = PSIIex445$PSII_L, x = PSII$PSII_L, colour = PSIIex445$strain)) +
-  geom_abline(intercept = 0, slope = 1) +
-  coord_fixed(ratio = 1) +
-  theme_bw()
 ```
 
-Some chlorophyll : PSII values seem to be off. 
+Some chlorophyll : PSII values seem to be high. 
 
 Either Algebra is off, or [Chl] is too high, or [PSII] is underestimated.
 Based upon reasonable range for [Chl], likely that [PSII] is sometimes underestimated?
@@ -528,32 +548,39 @@ Based upon reasonable range for [Chl], likely that [PSII] is sometimes underesti
 Filtered out problematic PCC6803 values; possible issue with light attenuation?
 Use PSIIex445 for now.
 
-```{r PSII vs. Chl}
+```{r PSII vs. Chl ETRCtauav}
 
-PSII %>%
+PSIICtauav %>%
   filter(PSII_L > 0) %>% 
   ggplot() +
   geom_point(aes(y = Chl_L, x = PSII_L)) +
   geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
   theme_bw()
 
-PSIIex445 %>%
+PSIICtauav_ex445 %>%
   filter(PSII_L > 0) %>% 
   ggplot() +
   geom_point(aes(y = Chl_L, x = PSII_L, colour = CultureID)) +
   geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
   theme_bw()
 
-PSIIex590 %>%
+PSIICtauav_ex590 %>%
   filter(PSII_L > 0) %>% 
   ggplot() +
   geom_point(aes(y = Chl_L, x = PSII_L, colour = CultureID)) +
   geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
   theme_bw()
 ```
+For PSIICtauav
+1e18 Chl l-1 / 3 e14 PSII_L ~ 3333 Chl : PSII
+It should be in the range of 250 to 1500.
 
-For PSIIex445
-7.5e17 Chl l-1 / 6 e14 PSII_L ~ 1250 Chl : PSII
+For PSIICtauav_ex445
+7.5e17 Chl l-1 / 3 e14 PSII_L ~ 2500 Chl : PSII
+It should be in the range of 250 to 1500.
+
+For PSIICtauav_ex590
+5 e17 Chl l-1 / 1.5 e14 PSII_L ~ 3333 Chl : PSII
 It should be in the range of 250 to 1500.
 
 Bottom up guesstimate:
@@ -564,17 +591,134 @@ Bottom up guesstimate:
 1 x (36 PSII chl) : 3 x (96 PSI chl)
 324 chl per PSII,
 
-11250 chl per PSII implies
+3333 chl per PSII implies
 
-11250 = (1 * 36 PSII chl) + (x * 96 PSI chl)
-(1250 - 36)/96
-Implies ~13 PSI : PSII
-This is at the upper end of plausibility for a cyanobacteria, and suggests an under-estimation of PSII content in our system.
+3333 = (1 * 36 PSII chl) + (x * 96 PSI chl)
+(3333 - 36)/96
+Implies ~34 PSI : PSII
+This is above the upper end of plausibility for a cyanobacteria, and suggests an under-estimation of PSII content in our system.
 
 
 Another cross check:
 7.5e17 chl L-1 is 1.25 umol Chl L-1
 1.25 umol chl L-1 x 893 ug chl/umol chl = 1122 ug chl L-1 = 1.2 ug chl ml-1 which is  plausible for cultures which contain PBSomes, but probably a bit dark.
+
+```{r PSII from ETRGorbo}
+
+PSIIGorbo <- O2FRRfPool %>%
+  filter(ActPARCorr != 0,
+         TempContO2 == "TC") %>% 
+  unite(IDCol, ObsDate, CultureID, remove = FALSE) %>%
+  #filter(IDCol != "2021-12-10MaBe3729") %>%
+#was unable to get filter(ObsDate != "2021-12-10" & CultureID != "MaBe3729")
+# to work even though filter(ObsDate == "2021-12-10" & CultureID == "MaBe3729")
+#gave the mirror image result
+
+#force linear models through 0 b/c we are excluding data where O2evln_O2ls <= 0 and at 0 PAR PSIIETR has to equal 0.
+  filter(strain != "PCC6803") %>%
+  nest(O2ETRdata = -c(ObsDate, CultureID, strain, Chl_ugL_mean)) %>% 
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls * 4 ~ 0 + ETRGorbo, data = .x), otherwise = NULL)),
+         O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
+  select(-c(O2ETRdata, O2ETRlm)) %>%
+  unnest(cols = O2ETRlm_tidy) %>%
+  filter(term  != "(Intercept)") %>%
+  select(-term) %>%
+  mutate(PSII_L = estimate, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error) %>%
+  mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
+         Chl_PSII =  Chl_L/PSII_L) #chl to molar
+
+PSIIGorbo_ex445 <- O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         TempContO2 == "TC",
+         Ex_WL == 445) %>% 
+         #filter(ObsDate != "2021-12-10" & CultureID != "MaBe3729") %>%
+  unite(IDCol, ObsDate, CultureID, remove = FALSE) %>%
+  #filter(IDCol != "2021-12-10MaBe3729") %>%
+  filter(strain != "PCC6803") %>%
+  nest(O2ETRdata = -c(ObsDate, CultureID,  strain, Chl_ugL_mean, Ex_WL)) %>% 
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls * 4 ~ 0 + ETRGorbo, data = .x), otherwise = NULL)),
+         O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
+  select(-c(O2ETRdata, O2ETRlm)) %>%
+  unnest(cols = O2ETRlm_tidy) %>%
+  filter(term  != "(Intercept)") %>%
+  select(-term) %>%
+  mutate(PSII_L = estimate, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error) %>%
+  mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
+         Chl_PSII = Chl_L/PSII_L) #chl to molar
+
+
+PSIIGorbo_ex590 <- O2FRRfPool %>%
+  filter(
+         ActPARCorr != 0,
+         TempContO2 == "TC",
+         Ex_WL == 590) %>% 
+         #filter(ObsDate != "2021-12-10" & CultureID != "MaBe3729") %>%
+  unite(IDCol, ObsDate, CultureID, remove = FALSE) %>%
+  #filter(IDCol != "2021-12-10MaBe3729") %>%
+  filter(strain != "PCC6803") %>%
+  nest(O2ETRdata = -c(ObsDate, CultureID,  strain, Chl_ugL_mean, Ex_WL)) %>% 
+  mutate(O2ETRlm = map(O2ETRdata,  possibly(~ lm(O2evln_O2ls * 4 ~ 0 + ETRGorbo, data = .x), otherwise = NULL)),
+         O2ETRlm_tidy = map(O2ETRlm, possibly(tidy, otherwise = NULL))) %>%
+  select(-c(O2ETRdata, O2ETRlm)) %>%
+  unnest(cols = O2ETRlm_tidy) %>%
+  filter(term  != "(Intercept)") %>%
+  select(-term) %>%
+  mutate(PSII_L = estimate, #check if divided by 4 is the right thing to do
+         PSII_L_se = std.error) %>%
+  mutate(Chl_L = Chl_ugL_mean /ChlMW_gmol * umol_particles,
+         Chl_PSII =  Chl_L/PSII_L) #chl to molar
+
+PSIIGorbo
+PSIIGorbo_ex445
+PSIIGorbo_ex590
+
+#cross plots
+ggplot() +
+  geom_point(aes(x = PSIIGorbo_ex445$PSII_L, y = PSIIGorbo_ex590$PSII_L, colour = PSIIex445$strain)) +
+  geom_abline(intercept = 0, slope = 1) +
+  #coord_fixed(ratio = 1) +
+  theme_bw()
+
+```
+
+```{r PSII vs. Chl ETRGorbo}
+
+PSIIGorbo %>%
+  filter(PSII_L > 0) %>% 
+  ggplot() +
+  geom_point(aes(y = Chl_L, x = PSII_L)) +
+  geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
+  theme_bw()
+
+PSIIGorbo_ex445 %>%
+  filter(PSII_L > 0) %>% 
+  ggplot() +
+  geom_point(aes(y = Chl_L, x = PSII_L, colour = CultureID)) +
+  geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
+  theme_bw()
+
+PSIIGorbo_ex590 %>%
+  filter(PSII_L > 0) %>% 
+  ggplot() +
+  geom_point(aes(y = Chl_L, x = PSII_L, colour = CultureID)) +
+  geom_smooth(aes(y = Chl_L, x = PSII_L), method = "lm") +  
+  theme_bw()
+```
+
+For PSIIGorbo_ex445
+1E18 Chl l-1 / 5E14 PSII_L ~ 2000 Chl : PSII
+
+2000 = (1 * 36 PSII chl) + (x * 96 PSI chl)
+(2000 - 36)/96
+Implies ~20 PSI : PSII
+This is above the upper end of plausibility for a cyanobacteria, and suggests an under-estimation of PSII content in our system.
+
+
+
+
 
 #Calibrate Fo/SigmaPSII using [PSII] from Ex_WL = 445 nm
 ```{r}
