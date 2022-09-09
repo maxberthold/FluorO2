@@ -883,45 +883,43 @@ O2FRRfPool %>%
 
 
 O2FRRf445_Nest <- O2FRRfPool %>%
-  filter(
-         TempContO2 == "TC",
+  filter(TempContO2 == "TC",
          ActPARCorr != 0,
          Ex_WL == 445,
-         O2evln_O2ls > 0) %>%
-  filter(JVPSII_aLHIIminmax > 0) %>%
+         O2evln_O2ls > 0,
+         JVPSII_aLHIIOxbomax > 0) %>%
   nest(O2FRRfdata = -c(Ex_WL)) %>%
-  mutate(PSIIETRO2lm = map(O2FRRfdata, possibly(~ lm(O2evln_O2ls * 4 ~ 0 +  JVPSII_aLHIIminmax, data = .x), otherwise = NULL)),
-         PSIIETRO2lm_tidy = map(PSIIETRO2lm, possibly(tidy, otherwise = NULL)))
+  mutate(JVPSII_O2lm = map(O2FRRfdata, possibly(~ lm(O2evln_O2ls * 4 ~ 0 +  JVPSII_aLHIIOxbomax, data = .x), otherwise = NULL)),
+         JVPSII_O2lm_tidy = map(JVPSII_O2lm, possibly(tidy, otherwise = NULL)))
 
 O2FRRf445lm <- O2FRRf445_Nest %>% 
-  unnest(PSIIETRO2lm_tidy)
+  unnest(JVPSII_O2lm_tidy)
 
-O2FRRf445_No6803Nest <- O2FRRfPool %>%
-  filter(
-         TempContO2 == "TC",
-         ActPARCorr != 0,
-         Ex_WL == 445,
-         O2evln_O2ls > 0) %>%
-  filter(JVPSII_aLHIIminmax > 0) %>%
-  filter(strain != "PCC6803") %>%
-  nest(O2FRRfdata = -c(Ex_WL)) %>%
-  mutate(PSIIETRO2lm = map(O2FRRfdata, possibly(~ lm(O2evln_O2ls * 4 ~ 0 +  JVPSII_aLHIIminmax, data = .x), otherwise = NULL)),
-         PSIIETRO2lm_tidy = map(PSIIETRO2lm, possibly(tidy, otherwise = NULL)))
-
-O2FRRf445_No6803lm <- O2FRRf445_No6803Nest %>% 
-  unnest(PSIIETRO2lm_tidy)
+# O2FRRf445_No6803Nest <- O2FRRfPool %>%
+#   filter(TempContO2 == "TC",
+#          ActPARCorr != 0,
+#          Ex_WL == 445,
+#          O2evln_O2ls > 0) %>%
+#   filter(JVPSII_aLHIIminmax > 0) %>%
+#   filter(strain != "PCC6803") %>%
+#   nest(O2FRRfdata = -c(Ex_WL)) %>%
+#   mutate(PSIIETRO2lm = map(O2FRRfdata, possibly(~ lm(O2evln_O2ls * 4 ~ 0 +  JVPSII_aLHIIminmax, data = .x), otherwise = NULL)),
+#          PSIIETRO2lm_tidy = map(PSIIETRO2lm, possibly(tidy, otherwise = NULL)))
+# 
+# O2FRRf445_No6803lm <- O2FRRf445_No6803Nest %>% 
+#   unnest(PSIIETRO2lm_tidy)
 
 #O2FRRf445_lms <- rbind(O2FRRf445lm, O2FRRf445_No6803lm
                        
-bindAndSource <-  function(df1, df2) { 
-  df1$source <- as.character(match.call())[[2]]
-  df2$source <- as.character(match.call())[[3]]
-  rbind(df1, df2)
-} 
-
-O2FRRf_lms <- bindAndSource(O2FRRf445_Nest %>% 
-  unnest(PSIIETRO2lm_tidy), O2FRRf445_No6803Nest %>% 
-  unnest(PSIIETRO2lm_tidy))
+# bindAndSource <-  function(df1, df2) { 
+#   df1$source <- as.character(match.call())[[2]]
+#   df2$source <- as.character(match.call())[[3]]
+#   rbind(df1, df2)
+# } 
+# 
+# O2FRRf_lms <- bindAndSource(O2FRRf445_Nest %>% 
+#   unnest(PSIIETRO2lm_tidy), O2FRRf445_No6803Nest %>% 
+#   unnest(PSIIETRO2lm_tidy))
 
 #alternative to 'nest' by Strain & Ex_WL to generate single nested dataframe
 # PSIIETR_O2_lm_445 <- tidy(O2FRRfPool %>%
@@ -953,20 +951,17 @@ O2FRRf_lms <- bindAndSource(O2FRRf445_Nest %>%
 #note '.' in ggplot(.)
 
 O2FRRfPool_plot <- O2FRRfPool %>%
-  filter(Dark1s == 0) %>%
-  filter(O2evln_O2ls > 0) %>%
-  filter(JVPSII_aLHIIminmax > 0) %>%
-  filter(Ex_WL == 445) %>%
-         {
-  ggplot(.) +
-  geom_point(aes(x = JVPSII_aLHIIminmax, y = O2evln_O2ls * 4, size = Chl_ugL_mean, colour = strain)) +
-  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[1]) +
-  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[1] + O2FRRf_lms$std.error[1], linetype = "dotted") +
-  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[1] - O2FRRf_lms$std.error[1], linetype = "dotted") +
-  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[2], linetype = "dashed") +
-  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[2] + O2FRRf_lms$std.error[12], linetype = "dotted") +
-  geom_abline(intercept = 0, slope = O2FRRf_lms$estimate[2] - O2FRRf_lms$std.error[2], linetype = "dotted") +
-  labs(title =  paste("Ex_WL ", unique(.$Ex_WL), "nm"), subtitle = "Solid Regression all strains; Dashed excludes PCC6803") +
+ filter(TempContO2 == "TC",
+         ActPARCorr != 0,
+         Ex_WL == 445,
+         O2evln_O2ls > 0,
+         JVPSII_aLHIIOxbomax > 0) %>%
+         {ggplot(.) +
+  geom_point(aes(x = JVPSII_aLHIIOxbomax, y = O2evln_O2ls * 4, size = Chl_ugL_mean, colour = strain)) +
+  geom_abline(intercept = 0, slope = O2FRRf445lm$estimate[1]) +
+  geom_abline(intercept = 0, slope = O2FRRf445lm$estimate[1] + O2FRRf445lm$std.error[1], linetype = "dotted") +
+  geom_abline(intercept = 0, slope = O2FRRf445lm$estimate[1] - O2FRRf445lm$std.error[1], linetype = "dotted") +
+  labs(title =  paste("Ex_WL ", unique(.$Ex_WL), "nm"), subtitle = "Solid Regression all strains") +
   theme_bw()}
 
 
@@ -979,7 +974,7 @@ O2FRRfPool_plot <- O2FRRfPool %>%
 
 ggsave(filename = file.path(DataOut, "O2FRRfPool_plot.png"), plot = O2FRRfPool_plot)
 
-saveRDS(O2FRRf_lms, file.path(DataOut, paste(Project, "O2FRRf_lms.Rds", sep = "_"), fsep = .Platform$file.sep))
+saveRDS(O2FRRf445lm, file.path(DataOut, paste(Project, "O2FRRf445lm.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
 
 
