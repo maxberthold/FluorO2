@@ -328,49 +328,48 @@ O2FRRfPool <- left_join(x = O2FRRfAll, y = ChloroDataAver, by = c("CultureID", c
 colnames(O2FRRfPool)
 ```
 
-XXX 6 Sept 2022
-```{r ExWL blue JVPSII comparisons}
+
+```{r JVPSII_Chl vs O2_chl comparisons}
 
 O2FRRfPool %>%
-  filter(
-         Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIminmax, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIminmax, colour = as.factor(TempContO2)), method = "lm") +
-  #facet_grid(rows = vars(Ex_WL)) +
+  geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_aLHIIOxbomax/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
+  geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_aLHIIOxbomax/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
+  facet_grid(cols = vars(Ex_WL)) +
   theme_bw()
 
 O2FRRfPool %>%
-  filter(
-         Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_aLHIIdark, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_aLHIIdark, colour = as.factor(TempContO2)), method = "lm") +
-  #facet_grid(rows = vars(Ex_WL)) +
+  geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRtauav_FoSig/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
+  geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRtauav_FoSig/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
+  facet_grid(cols = vars(Ex_WL)) +
   theme_bw()
 
 O2FRRfPool %>%
-  filter(
-         Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRtau1, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRtau1, colour = as.factor(TempContO2)), method = "lm") +
-  #facet_grid(rows = vars(Ex_WL)) +
+  geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRqpOxbo_FoSig/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
+  geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRqpOxbo_FoSig/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
+  facet_grid(cols = vars(Ex_WL)) +
   theme_bw()
 
 O2FRRfPool %>%
-  filter(
-         Ex_WL == 445,
-         ActPARCorr != 0) %>%
+  filter(ActPARCorr != 0) %>%
   ggplot() +
-  geom_point(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo, colour = as.factor(TempContO2))) +
-  geom_smooth(aes(x = O2evln_O2ls, y = JVPSII_ETRqpOxbo, colour = as.factor(TempContO2)), method = "lm") +
-  #facet_grid(rows = vars(Ex_WL)) +
+  geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRtauav_aLHII_Sig/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
+  geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRtauav_aLHII_Sig/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
+  facet_grid(cols = vars(Ex_WL)) +
   theme_bw()
 
+O2FRRfPool %>%
+  filter(ActPARCorr != 0) %>%
+  ggplot() +
+  geom_point(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRqpOxbo_aLHII_Sig/Chl_ugL_mean, colour = as.factor(TempContO2), shape = strain)) +
+  geom_smooth(aes(x = O2evln_O2ls/Chl_ugL_mean, y = JVPSII_ETRqpOxbo_aLHII_Sig/Chl_ugL_mean, colour = as.factor(TempContO2)), method = "lm") +
+  facet_grid(cols = vars(Ex_WL)) +
+  theme_bw()
 ```
 
 # Facet ETRqp vs O2evln_O2ls by culture because different cultures have different [PSII]
