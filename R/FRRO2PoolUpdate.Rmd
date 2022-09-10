@@ -16,6 +16,8 @@ csl: plos-one.csl
 # To Do
 Run workflow with Mireille & Sylwia data
 
+Consider using higher of 2 respiration estimates to increase estimates of O2 L-1 s-1 which might better reconcile with ETR & Chl estimates
+
 # Done
 
 Do comparison of achieved PAR within the cuvette +/- TC.
@@ -411,42 +413,6 @@ O2FRRfPool %>%
   geom_point(aes(y = O2evln_O2ls/Chl_ugL_mean * 4, x = ETRGorbo, colour = as.factor(Ex_WL), size = ActPARCorr)) +
   geom_smooth(aes(y = O2evln_O2ls/Chl_ugL_mean  * 4, x = ETRGorbo), method = "lm") +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID, ObsDate)) +
-  theme_bw()
-
-O2FRRfPool %>%
-  filter(
-         ActPARCorr != 0,
-         #Ex_WL == 445,
-         #TempContO2 == "noTC"
-         ) %>%
-  ggplot() +
-  geom_point(aes(y = O2evln_O2ls  * 4, x = ETRCtau1, colour = as.factor(Ex_WL))) +
-  geom_smooth(aes(y = O2evln_O2ls  * 4, x = ETRCtau1), method = "lm") +
-  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
-  theme_bw()
-
-O2FRRfPool %>%
-  filter(
-         ActPARCorr != 0,
-         #Ex_WL == 445,
-         #TempContO2 == "TC"
-         ) %>%
-  ggplot() +
-  geom_point(aes(y = O2evln_O2ls  * 4, x = ETRqp, colour = Ex_WL)) +
-  geom_smooth(aes(y = O2evln_O2ls  * 4, x = ETRqp), method = "lm") +
-  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
-  theme_bw()
-
-
-O2FRRfPool %>%
-  filter(
-         ActPARCorr != 0,
-         #Ex_WL == 445,
-         TempContO2 == "TC") %>%
-  ggplot() +
-  geom_point(aes(y = O2evln_O2ls  * 4, x = ETRqp, colour = Ex_WL)) +
-  geom_smooth(aes(y = O2evln_O2ls  * 4, x = ETRqp), method = "lm") +
-  facet_grid(rows = vars(ObsDate), cols = vars(CultureID)) +
   theme_bw()
 
 ```
