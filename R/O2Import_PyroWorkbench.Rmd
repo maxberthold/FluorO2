@@ -22,7 +22,7 @@ Changes in [O2] reflect (hopefully) oxygen evolution or oxygen consumption by th
 
 ## Materials and Methods
 
-This .Rmd Rworkbook imports data in simple .csv form exported from FireSting optodes based upon project specific values for variables set by the user.
+This .Rmd Rworkbook imports data in simple .txt .tsv form exported from FireSting optodes based upon project specific values for variables set by the user.
 
 It tidies and organizes the data.
 
@@ -49,12 +49,11 @@ knitr::opts_chunk$set(fig.path='Figs/')
 #"..", takes up a level in the directory path
 Project <- "FluorO2"
 
-#Temporary RunDate during auditing
-RunDate <- "20210611"
+Run <- "SySlCCACaloxy"
 
 
 FileID <- "caloxy"
-DataIn <- file.path("..","RawData", "Optode", RunDate)
+DataIn <- file.path("..", "Optode", Run)
 DataOut <- file.path("..","ImportData", "Optode")
 #MetaCatalog <- file.path("..","PicoCatalog.csv")
 
@@ -65,6 +64,8 @@ Delimiter <- "\t"
 HeaderRows <- 19
 Comment <- "#"
 
+#Set URL for MetaData
+MetaDataURL <- "https://docs.google.com/spreadsheets/d/1ZXpwR7Gfto-uRzVdXzMpQF4frbrvMLH_IyLqonFZRSw/edit#gid=0"
 ```
 
 ```{r load libraries} 
@@ -76,8 +77,8 @@ library(broom)
 #library(knitr)
 #library(zoo)
 #library(tidyquant)
-#library(googlesheets4)
-#library(googledrive)
+library(googlesheets4)
+library(googledrive)
 #library(dplyr)
 ```
 
@@ -93,10 +94,10 @@ Colours_nm
 
 This chunk reads in the MetaData catalog from googlesheets 
 ```{r load Catalog, now as a google sheet}
-# gs4_deauth()
+ gs4_deauth()
 # #deauthorizes access to googlesheet
 # 
-# MetaCatalog <- read_sheet("https://docs.google.com/spreadsheets/d/1ZXpwR7Gfto-uRzVdXzMpQF4frbrvMLH_IyLqonFZRSw/edit#gid=0") %>%
+ MetaCatalog <- read_sheet(MetaDataURL) %>%
 # # sheet is read in by sheet ID, obtained from the URL of the sheet.
 # # read_sheet has an annoying "feature" to set the type of columns it can't parse to a list.
 # # ggplot/dplyr doesn't like working with a dataframe of lists.
@@ -104,16 +105,17 @@ This chunk reads in the MetaData catalog from googlesheets
 # # To fix this, first drop all rows missing WL, then unlist.
 # # Must first drop NA rows since unlist will collapse NULL lists, then the unlisted WL is a shorter length than original WL column, which mutate doesn't like.
 # 
-# drop_na(WL) %>%
-#   mutate(WL = unlist(WL))
-# 
-# as.data.frame(MetaCatalog)
+ drop_na(WL) %>%
+   mutate(WL = unlist(WL))
+ 
+ as.data.frame(MetaCatalog)
 ```
 
 listing the names of the oxygen data, classified as DataIn. DataIn = O2Data 
 ```{r O2Data files}
 
-O2DataFiles <- list.files(path = DataIn, pattern = FileID, full.names = TRUE)
+#recursive = TRUE sets function to go down directory path
+O2DataFiles <- list.files(path = DataIn, pattern = FileID, full.names = TRUE, recursive = TRUE)
 
 #check file names
 O2DataFiles
