@@ -39,6 +39,57 @@ create preiminary graphs
 -O2 preliminary plots
 -merge O2 plots as over-lays of growth plots (time axis may be tricky but I think I know how)
 
+First Try Import Dialog Under 'Environment' to import a single file into a dataframe.
+
+File delimiter is '.tsv' b/c the instrument software is from Europe.
+
+Appears to be 11 rows of 'Header' Information to skip.
+```{r paste code from Import dialog}
+
+library(readr)
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+
+#raw paste fails b/c need to change file path
+
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+```
+
+Many issues with raw imported file:
+-all 'columns' converted to 'character' type because they contain more than one type of data
+
+-'Header' or 'Meta' data rows at top of file incorrectly included as 'data'
+-many 'non-syntatical' variable names, and variable values that may cause problems later.
+  Variable names need to start with a letter, and must only include letters, numeral or '_'.
+  Variable values should only include letters, or numerals, or letters + numerals + '_'
+  
+-'Variable Names' are present on multiple rows
+-Separate variables are concatenated into single columns b/c of issues with 'Variable Names'
+
+So, try again, setting 'skip' value to jump over 
+```{r import dialog paste, retry}
+library(readr)
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE, skip = 13)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+
+colnames(X202204061316_PICO_caloxy_SySl1156_445_LL)
+```
+
+Now we have:
+-multiple columns with non-syntatical names
+-multiple columns in which all values are 'NA'
+-multiple columns in which all values are '---'
+
+There is no clear means to solve these problems through 'Import' dialog.
+
+
 # Set Chunk Options
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE)
