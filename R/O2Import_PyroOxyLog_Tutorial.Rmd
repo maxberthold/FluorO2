@@ -1,0 +1,289 @@
+---
+title: "O2ImportTidy"
+author:
+
+- Douglas A. Campbell
+- Maximilian Berthold
+- Laurel Genge
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    keep_md: yes
+    fig_caption: yes
+    toc: TRUE
+    toc_float: TRUE
+csl: plos-one.csl
+---
+
+##Introduction
+We use an optode to measure [O2] µmol l-1 in suspensions of phytoplankton.
+Changes in [O2] reflect (hopefully) oxygen evolution or oxygen consumption by the cell suspension.
+
+## Materials and Methods
+
+This .Rmd Rworkbook imports data in simple .txt .tsv form exported from FireSting optodes based upon project specific values for variables set by the user.
+
+It tidies and organizes the data.
+
+To-Do list:
+
+variable name is in two rows, need to find a way to make variable name in two rows into one row.
+Need to match the tube number from file name with Ch1O2 etc... 
+Need to match each run with date from catalog
+create preiminary graphs
+
+#Priority List
+-single data file import for O2
+-multi-file batch data import (may not be fully feasible given we need match multiple files together in some cases)
+-O2 preliminary plots
+-merge O2 plots as over-lays of growth plots (time axis may be tricky but I think I know how)
+
+First Try Import Dialog Under 'Environment' to import a single file into a dataframe.
+
+File delimiter is '.tsv' b/c the instrument software is from Europe.
+
+Appears to be 11 rows of 'Header' Information to skip.
+```{r paste code from Import dialog}
+
+library(readr)
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+
+#raw paste fails b/c need to change file path
+
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+```
+
+Many issues with raw imported file:
+-all 'columns' converted to 'character' type because they contain more than one type of data
+
+-'Header' or 'Meta' data rows at top of file are incorrectly included as 'data'
+-Many variable names are 'non-syntatical' for R.
+  Variable names for R need to start with a letter, and must only include letters, numeral or '_'.
+  
+-Some variable values  may cause problems later.
+  Variable values for R should only include letters, or numerals, or letters + numerals + '_'
+  In a DataFrame all values in a column must be of the same 'class'; all numeric; all character; all logical; all factor
+  In a DataFrame all columns must be of the same length.
+  (Technical detour:
+A DataFrame is a 'list' of named 'atomic vectors', with each vector the same length.  The names of the vectors are the variable names; the elements of the vectors are the aligned rows.)
+  
+-'Variable Names' are present on multiple rows
+-Separate variables are concatenated into single columns b/c of issues with 'Variable Names'
+
+So, try again, setting 'skip' value to jump over 
+```{r import dialog paste, retry}
+library(readr)
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE, skip = 13)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+
+colnames(X202204061316_PICO_caloxy_SySl1156_445_LL)
+```
+
+Now we have:
+-multiple columns in which all values are 'NA'
+-multiple columns in which all values are '---'
+-multiple columns with non-syntactical names
+
+There is no clear means to solve these problems interactively through the 'Import' dialog.
+
+An Approach:
+-Find code to identify and remove columns which contain only 'NA' or only '---'
+to simplify our work
+  That may cause problems if different files for later import have different 'empty' columns
+  
+-Re-name remaining columns with syntactical variable names
+  That may cause problems if different files for later import have different column names or orders
+
+```{r remove columns containing only 'NA'}
+#switch to more convenient name for dataframe and remove columns which are all 'NA'
+OptodeTest <- X202204061316_PICO_caloxy_SySl1156_445_LL %>%
+  select(
+    where(
+      ~!all(is.na(.x)) #remove columns of all na
+    )
+  )
+```
+
+```{r remove columns containing only ---}
+#https://stackoverflow.com/questions/41815039/remove-columns-that-contain-a-specific-word
+#remove columns which only contain value '---'
+OptodeTest2 <- OptodeTest %>%
+  select(
+    where(
+      ~!all(str_detect(.x, pattern = "---")) #remove columns containing only all "---"
+    )
+  )
+```
+
+```{r rename non-syntactical variable names}
+colnames(OptodeTest2)
+#CampbellCase_unit variable naming convention followed; following a convention makes variable naming easier and more consistent.
+
+#Renaming involves knowledge of what data is actually present to give sensible names
+OptodeTest3 <- OptodeTest2 %>%
+  rename(Time_hms == `Time (HH:MM:SS)`,
+         ETime_s == `Time_s`,
+         )
+```
+
+  
+# Set Chunk Options
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+knitr::opts_chunk$set(fig.path='Figs/')
+```
+
+```{r set project variables}
+#"..", takes up a level in the directory path
+Project <- "FluorO2"
+
+Run <- "SySlCCACaloxy"
+
+
+FileID <- "caloxy"
+DataIn <- file.path("..", "Optode", Run)
+DataOut <- file.path("..","ImportData", "Optode")
+#MetaCatalog <- file.path("..","PicoCatalog.csv")
+
+FileEncode <- "UTF-8" 
+Delimiter <- "\t"
+
+#fixed HeaderRows is brittle; better to figure out how to read all data starting at line that contains 'key'
+HeaderRows <- 19
+Comment <- "#"
+
+#Set URL for MetaData
+MetaDataURL <- "https://docs.google.com/spreadsheets/d/1ZXpwR7Gfto-uRzVdXzMpQF4frbrvMLH_IyLqonFZRSw/edit#gid=0"
+```
+
+```{r load libraries} 
+# libraries; Note check actual dependencies
+library(tidyverse)
+library(lubridate)
+#library(stringr)
+library(broom)
+#library(knitr)
+#library(zoo)
+#library(tidyquant)
+library(googlesheets4)
+library(googledrive)
+#library(dplyr)
+```
+
+```{r set colours}
+Wavelengths_nm = c(445, 470, 505, 535, 590)
+Colours_nm = c("darkblue", "dodgerblue", "darkgreen", "yellowgreen",  "darkorange")
+
+
+names(Colours_nm) <- Wavelengths_nm
+Colours_nm
+
+```
+
+This chunk reads in the MetaData catalog from googlesheets 
+```{r load Catalog, now as a google sheet}
+ gs4_deauth()
+# #deauthorizes access to googlesheet
+# 
+ MetaCatalog <- read_sheet(MetaDataURL) %>%
+# # sheet is read in by sheet ID, obtained from the URL of the sheet.
+# # read_sheet has an annoying "feature" to set the type of columns it can't parse to a list.
+# # ggplot/dplyr doesn't like working with a dataframe of lists.
+# # In this case WL is set to a list since some values are numbers, some are strings, some are blank.
+# # To fix this, first drop all rows missing WL, then unlist.
+# # Must first drop NA rows since unlist will collapse NULL lists, then the unlisted WL is a shorter length than original WL column, which mutate doesn't like.
+# 
+ drop_na(WL) %>%
+   mutate(WL = unlist(WL))
+ 
+ as.data.frame(MetaCatalog)
+```
+
+listing the names of the oxygen data, classified as DataIn. DataIn = O2Data 
+```{r O2Data files}
+
+#recursive = TRUE sets function to go down directory path
+O2DataFiles <- list.files(path = DataIn, pattern = FileID, full.names = TRUE, recursive = TRUE)
+
+#check file names
+O2DataFiles
+
+O2DataFiles<-  grep('txt', O2DataFiles, value = TRUE, invert = FALSE)
+
+#only retain .txt files
+O2DataFiles
+```
+
+Creates function using data.table::fread to skip the beginning comments and starts reading file after key word "Data". Second function read_tsv_plus adding file name and skips header rows to start reading file after. Data read.delim_plus or read_delim_plus adds filename and cdate, message=FALSE, warning=FALSE
+```{r creating functions to read in data}
+
+#function adds filename and cdate and controls when R starts to read the file, skips header rows
+#fread_plus <- function(Flnm, Skip){data.table::fread(file = Flnm, skip = "Date [A Ch.1 Main]" ) %>% mutate(Filename = Flnm, CDateTime = ymd_hms(file.info(Flnm)$ctime))}
+
+
+#function allows you to read in oxygen data files (Reads in Run14 files)
+read_tsv_plus <- function(Flnm, HeaderRows){read_tsv(Flnm,  col_names = TRUE,  comment = Comment) %>%
+    mutate(filename = Flnm)}
+
+#generates a read function using tidyverse::read_delim
+ #read.delim_plus <- function(flnm, FileEncode, Delimiter, HeaderRows){read.delim(flnm, fileEncoding = FileEncode, sep = Delimiter,  skip = HeaderRows, row.names = NULL) %>%
+     #mutate(filename = flnm, cdatetime = ymd_hms(file.info(flnm)$ctime))}
+
+#Adds filename and cdate
+#read_delim_plus <- function(Flnm, Delimiter, HeaderRows, Comment){read_delim(file = Flnm, delim = Delimiter, comment = Comment, skip = HeaderRows) %>%
+     #mutate(Filename = Flnm, CDateTime = ymd_hms(file.info(Flnm)$ctime))}
+ 
+```
+
+
+Reads in O2Data, and skips the "notes" at the beginning of the data and begins to read after HeaderRows. Renames columns so there are no duplicates (.name_repair)
+```{r read optode data}
+
+#brittle to use column numbers; needs to be changed if using multiple channels
+O2Data <- O2DataFiles %>% 
+  map_df(~read_tsv_plus(Flnm = ., HeaderRows = 19)) %>%
+  select(c(1:4, 12, "Time [Comment]","Comment","filename")) %>%
+  rename(Date = `Date [A Ch.1 Main]`, 
+         AbsTime = `Time [A Ch.1 Main]`,
+         LR_s = `dt (s) [A Ch.1 Main]`,
+         O2_umolL = `Oxygen (\xb5mol/L) [A Ch.1 Main]`, 
+         Temp_C = `Sample Temp. (\xb0C) [A Ch.1 CompT]`,
+         CommentTime = `Time [Comment]`) %>%
+  mutate(CommentTime = hms::new_hms(as.numeric(CommentTime) + (3600 * 12)))
+
+O2Data <- O2Data %>%
+  mutate(filename = str_remove(string = filename, pattern = ".txt")) %>%
+  mutate(filename = str_remove(string = filename, pattern = "../RawData/Optode/")) %>%  
+  separate(filename, into = c("RunDate", "FileDate","FileTime", "Project", "FileID", "CultureID", "Ex_WL"), sep = "([\\/\\_\\_\\_\\_\\_])", remove = FALSE) %>%
+  mutate(FileTime = parse_date_time(as.character(FileTime), "hms")) %>%
+  separate(FileTime, into = c("FileYear", "FileTime"), sep = "([ ])", remove = TRUE) %>%
+  select(-c(FileYear))
+
+O2Data[1:5,]
+```
+
+```{r prelimplot}
+O2Data %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
+  theme_bw()
+```
+
+
+```{r save SolFitsTrim data}
+saveRDS(O2Data, file.path(DataOut, paste(Project, RunDate, "O2Data.Rds", sep = "_"), fsep = .Platform$file.sep))
+```
+
+
+
