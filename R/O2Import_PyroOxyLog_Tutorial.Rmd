@@ -128,11 +128,24 @@ OptodeTest2 <- OptodeTest %>%
 colnames(OptodeTest2)
 #CampbellCase_unit variable naming convention followed; following a convention makes variable naming easier and more consistent.
 
+#Remove supefluous columns from working dataframe; be careful!
 #Renaming involves knowledge of what data is actually present to give sensible names
+#Enclose problematic character strings in `` so R does not attempt to interpret strings as code etc.
+
 OptodeTest3 <- OptodeTest2 %>%
-  rename(Time_hms == `Time (HH:MM:SS)`,
-         ETime_s == `Time_s`,
-         )
+  select(-c(`(mbar)`, `(%)`,`('C)...15`,`Ch 1...18`,`Ch1...22`,`Ch1...26`)) %>%
+  rename(Time_hms = `Time (HH:MM:SS)`,
+         ETime_s = `Time (s)`,
+         O2_umolL = `Ch1...5`,
+         Temp_C = `Ch 1...9`)
+```
+
+Reality Therapy Plot
+```{r reality therapy plot}
+OptodeTest3 %>%
+  ggplot() +
+  geom_point(aes(x = ETime_s, y = O2_umolL)) +
+  theme_bw()
 ```
 
   
