@@ -146,7 +146,27 @@ OptodeTest3 %>%
   ggplot() +
   geom_point(aes(x = ETime_s, y = O2_umolL)) +
   theme_bw()
+
+OptodeTest3 %>%
+  ggplot() +
+  geom_point(aes(x = ETime_s, y = Temp_C)) +
+  theme_bw()
 ```
+
+We have code to import and tidy a file from the PyroOxyLog Oxygen Optode monitoring system.
+
+We could save the tidied DataFrame as a .csv for use elsewhere, or as an .Rds file for re-use within R.
+
+```{r save OptodeTest data}
+write_csv(x = OptodeTest3, file = file.path("OptodeTest3.Rds", fsep = .Platform$file.sep))
+
+#note slightly different syntax for saveRDS
+saveRDS(OptodeTest3, file = file.path("OptodeTest3.Rds", fsep = .Platform$file.sep))
+```
+
+But, we have thousands of such files with ~~identical structures~~, containing data from different runs.
+
+Could we implement a bulk import and assembly of the data from multiple files into a common dataframe?
 
   
 # Set Chunk Options
@@ -155,12 +175,11 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 knitr::opts_chunk$set(fig.path='Figs/')
 ```
 
-```{r set project variables}
+```{r set project variables for bulk import}
 #"..", takes up a level in the directory path
 Project <- "FluorO2"
 
 Run <- "SySlCCACaloxy"
-
 
 FileID <- "caloxy"
 DataIn <- file.path("..", "Optode", Run)
@@ -170,8 +189,8 @@ DataOut <- file.path("..","ImportData", "Optode")
 FileEncode <- "UTF-8" 
 Delimiter <- "\t"
 
-#fixed HeaderRows is brittle; better to figure out how to read all data starting at line that contains 'key'
-HeaderRows <- 19
+#fixed 'Skip' is brittle; better to start reading all data starting at line that contains 'key'
+Skip <- 13
 Comment <- "#"
 
 #Set URL for MetaData
@@ -193,6 +212,7 @@ library(googledrive)
 ```
 
 ```{r set colours}
+#Setting a vector of wavelength values, then using it to 'name' a vector of R colour values will allow us to assign colours to wavelengths later
 Wavelengths_nm = c(445, 470, 505, 535, 590)
 Colours_nm = c("darkblue", "dodgerblue", "darkgreen", "yellowgreen",  "darkorange")
 
@@ -224,8 +244,8 @@ This chunk reads in the MetaData catalog from googlesheets
 listing the names of the oxygen data, classified as DataIn. DataIn = O2Data 
 ```{r O2Data files}
 
-#recursive = TRUE sets function to go down directory path
-O2DataFiles <- list.files(path = DataIn, pattern = FileID, full.names = TRUE, recursive = TRUE)
+#recursive = TRUE sets function to go down directory path; recursive = FALSE will only read files at the level of the assigned directory, not in sub-folders
+O2DataFiles <- list.files(path = DataIn, pattern = FileID, full.names = TRUE, recursive = FALSE)
 
 #check file names
 O2DataFiles
@@ -234,9 +254,13 @@ O2DataFiles<-  grep('txt', O2DataFiles, value = TRUE, invert = FALSE)
 
 #only retain .txt files
 O2DataFiles
+length(O2DataFiles)
 ```
 
-Creates function using data.table::fread to skip the beginning comments and starts reading file after key word "Data". Second function read_tsv_plus adding file name and skips header rows to start reading file after. Data read.delim_plus or read_delim_plus adds filename and cdate, message=FALSE, warning=FALSE
+We have a path to a folder that contains `r length(O2DataFiles)` in the .txt format we seek.
+This data set is big enough to be worth a bulk import, but small enough to handle.
+
+Create function using data.table::fread to skip the beginning comments and starts reading file after key word "Data". Second function read_tsv_plus adding file name and skips header rows to start reading file after. Data read.delim_plus or read_delim_plus adds filename and cdate, message=FALSE, warning=FALSE
 ```{r creating functions to read in data}
 
 #function adds filename and cdate and controls when R starts to read the file, skips header rows
