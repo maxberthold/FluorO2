@@ -16,34 +16,33 @@ output:
 csl: plos-one.csl
 ---
 
-##Introduction
+# Introduction
 We use an optode to measure [O2] µmol l-1 in suspensions of phytoplankton.
 Changes in [O2] reflect (hopefully) oxygen evolution or oxygen consumption by the cell suspension.
 
-## Materials and Methods
+# Materials and Methods
 
 This .Rmd Rworkbook imports data in simple .txt .tsv form exported from FireSting optodes based upon project specific values for variables set by the user.
 
 It tidies and organizes the data.
 
-To-Do list:
+## To-Do list:
 
 variable name is in two rows, need to find a way to make variable name in two rows into one row.
 Need to match the tube number from file name with Ch1O2 etc... 
 Need to match each run with date from catalog
 create preiminary graphs
 
-#Priority List
+## Priority List
 -single data file import for O2
 -multi-file batch data import (may not be fully feasible given we need match multiple files together in some cases)
 -O2 preliminary plots
 -merge O2 plots as over-lays of growth plots (time axis may be tricky but I think I know how)
 
-First Try Import Dialog Under 'Environment' to import a single file into a dataframe.
+## First Try Import Dialog Under 'Environment' to import a single file into a dataframe.
 
 File delimiter is '.tsv' b/c the instrument software is from Europe.
 
-Appears to be 11 rows of 'Header' Information to skip.
 ```{r paste code from Import dialog}
 
 library(readr)
@@ -60,10 +59,12 @@ X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("../Optode/SySlCCACaloxy
 View(X202204061316_PICO_caloxy_SySl1156_445_LL)
 ```
 
-Many issues with raw imported file:
+## Issues with raw imported file:
+
 -all 'columns' converted to 'character' type because they contain more than one type of data
 
--'Header' or 'Meta' data rows at top of file are incorrectly included as 'data'
+-~13 rows of 'Header' or 'Meta' data rows at top of file are incorrectly included as 'data'
+
 -Many variable names are 'non-syntatical' for R.
   Variable names for R need to start with a letter, and must only include letters, numeral or '_'.
   
@@ -77,15 +78,20 @@ A DataFrame is a 'list' of named 'atomic vectors', with each vector the same len
 -'Variable Names' are present on multiple rows
 -Separate variables are concatenated into single columns b/c of issues with 'Variable Names'
 
-So, try again, setting 'skip' value to jump over 
+So, try again, setting 'skip' value for number of rows to jump over.
+Setting a fixed number of rows to jump over is 'brittle', and will fail if a given file had a slightly different 'header' structure.
+
 ```{r import dialog paste, retry}
-library(readr)
+#library(readr)
 X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE, skip = 13)
 View(X202204061316_PICO_caloxy_SySl1156_445_LL)
 
 colnames(X202204061316_PICO_caloxy_SySl1156_445_LL)
+
+library(data.table)
+
 ```
 
 Now we have:
@@ -104,7 +110,7 @@ to simplify our work
   That may cause problems if different files for later import have different column names or orders
 
 ```{r remove columns containing only 'NA'}
-#switch to more convenient name for dataframe and remove columns which are all 'NA'
+#Remove columns which are all 'NA'
 OptodeTest <- X202204061316_PICO_caloxy_SySl1156_445_LL %>%
   select(
     where(
@@ -122,13 +128,15 @@ OptodeTest2 <- OptodeTest %>%
       ~!all(str_detect(.x, pattern = "---")) #remove columns containing only all "---"
     )
   )
+
+colnames(OptodeTest2)
 ```
 
 ```{r rename non-syntactical variable names}
-colnames(OptodeTest2)
+
 #CampbellCase_unit variable naming convention followed; following a convention makes variable naming easier and more consistent.
 
-#Remove supefluous columns from working dataframe; be careful!
+#Remove superfluous columns from working dataframe; be careful!
 #Renaming involves knowledge of what data is actually present to give sensible names
 #Enclose problematic character strings in `` so R does not attempt to interpret strings as code etc.
 
@@ -138,6 +146,8 @@ OptodeTest3 <- OptodeTest2 %>%
          ETime_s = `Time (s)`,
          O2_umolL = `Ch1...5`,
          Temp_C = `Ch 1...9`)
+
+head(OptodeTest3)
 ```
 
 Reality Therapy Plot
@@ -153,7 +163,7 @@ OptodeTest3 %>%
   theme_bw()
 ```
 
-We have code to import and tidy a file from the PyroOxyLog Oxygen Optode monitoring system.
+We have code to import and tidy a single file from the PyroOxyLog Oxygen Optode monitoring system.
 
 We could save the tidied DataFrame as a .csv for use elsewhere, or as an .Rds file for re-use within R.
 
