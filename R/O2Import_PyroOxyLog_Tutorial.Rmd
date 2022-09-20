@@ -275,8 +275,9 @@ Create function read_tsv_plus adding file name and skips header rows to start re
 Alternate function using data.table::fread skips the beginning comments and starts reading file after key word "Data".
 ```{r creating functions to read in data}
 #a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
- read.delim_plus <- function(flnm, fileencode, delimiter, header){read.delim(file = flnm, fileEncoding = fileencode, sep = delimiter,  skip = header, row.names = NULL) %>%
-     mutate(filename = flnm, cdatetime = ymd_hms(file.info(flnm)$ctime))}
+ read_delim_plus <- function(flnm, delimiter, fileencode, header){read.delim(file = flnm, delim = delimiter, escape_double = FALSE, trim_ws = TRUE, skip = header,  locale = locale(encoding = fileencode), col_names = TRUE, col_types = NULL) %>%
+     mutate(filename = flnm, cdatetime = ymd_hms(file.info(flnm)$ctime))
+   }
 
 #a read function using data.table::fread that skips header rows up to occurence of a character string, and adds columns to the dataframe containing filename and cdate.
 #fread_plus <- function(Flnm, Skip){data.table::fread(file = Flnm, skip = "Date [A Ch.1 Main]" ) %>% mutate(Filename = Flnm, CDateTime = ymd_hms(file.info(Flnm)$ctime))}
@@ -285,12 +286,38 @@ Alternate function using data.table::fread skips the beginning comments and star
  
 ```
 "../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt"
+../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt
+
 
 Reads in O2Data files one after another; skips the "notes" at the beginning of the data and begins to read each file after HeaderRows. Renames columns so there are no duplicates (.name_repair)
 ```{r read optode data}
 
+test <- read_delim(O2DataFiles[[1]], 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE, skip = 13)
+
+head(test)
+
+testmap <- O2DataFiles %>%
+  map_dfr(~read_delim(., delim = "/t", escape_double = FALSE, 
+    trim_ws = TRUE, skip = 13))
+
+head(testmap)
+
+read_tsv_plus <- function(Flnm, HeaderRows){read_tsv(Flnm,  col_names = TRUE,  comment = Comment, skip = HeaderRows) %>%
+    mutate(filename = Flnm)}
+
+test2map <- O2DataFiles %>%
+  map_df(~read_tsv_plus(Flnm = ., HeaderRows = HeaderRows))
+
+head(test2map)
+
 O2Data <- O2DataFiles %>% 
-  purrr::map_df(~read.delim_plus(flnm = ., fileencode = FileEncode, delimiter = Delimiter , header = HeaderRows)) %>%
+  purrr::map_df(~read_delim_plus(flnm = ., delimiter = Delimiter, fileencode = FileEncode, header = HeaderRows))
+
+
+
+%>%
    select(
     where(
       ~!all(is.na(.x)) #remove columns of all na
