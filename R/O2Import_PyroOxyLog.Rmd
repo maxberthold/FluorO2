@@ -1,4 +1,4 @@
----
+ ---
 title: "O2ImportTidy"
 author:
 
@@ -124,7 +124,7 @@ O2DataFiles<-  grep('txt', O2DataFiles, value = TRUE, invert = FALSE)
 O2DataFiles
 ```
 
-Creates function using data.table::fread to skip the beginning comments and starts reading file after key word "Data". Seconf function read_tsv_plus adding file name and skips header rows to start reading file after. Data read.delim_plus or read_delim_plus adds filename and cdate, message=FALSE, warning=FALSE
+Creates function using data.table::fread to skip the beginning comments and starts reading file after key word "Data". Second function read_tsv_plus adding file name and skips header rows to start reading file after. Data read.delim_plus or read_delim_plus adds filename and cdate, message=FALSE, warning=FALSE
 ```{r creating functions to read in data}
 
 #function adds filename and cdate and controls when R starts to read the file, skips header rows
