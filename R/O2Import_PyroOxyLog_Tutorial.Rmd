@@ -275,9 +275,11 @@ Create function read_tsv_plus adding file name and skips header rows to start re
 Alternate function using data.table::fread skips the beginning comments and starts reading file after key word "Data".
 ```{r creating functions to read in data}
 #a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
- read_delim_plus <- function(flnm, delimiter, fileencode, header){read.delim(file = flnm, delim = delimiter, escape_double = FALSE, trim_ws = TRUE, skip = header,  locale = locale(encoding = fileencode), col_names = TRUE, col_types = NULL) %>%
-     mutate(filename = flnm, cdatetime = ymd_hms(file.info(flnm)$ctime))
-   }
+read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  comment = Comment, skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE, ) %>%
+    mutate(Filename = flnm,
+           Cdatetime = ymd_hms(file.info(flnm)$ctime))
+  }
+
 
 #a read function using data.table::fread that skips header rows up to occurence of a character string, and adds columns to the dataframe containing filename and cdate.
 #fread_plus <- function(Flnm, Skip){data.table::fread(file = Flnm, skip = "Date [A Ch.1 Main]" ) %>% mutate(Filename = Flnm, CDateTime = ymd_hms(file.info(Flnm)$ctime))}
@@ -290,60 +292,50 @@ Alternate function using data.table::fread skips the beginning comments and star
 
 
 Reads in O2Data files one after another; skips the "notes" at the beginning of the data and begins to read each file after HeaderRows. Renames columns so there are no duplicates (.name_repair)
+
+There are multiple functions from baseR ('read.delim'), from Tidyverse ('read_delim') or from data.table ('fread') for reading in files; if one approach fails; try another.
+Pipe read files directly to cleaning steps; could do cleaning transforms within 'map_df' as well
 ```{r read optode data}
 
-test <- read_delim(O2DataFiles[[1]], 
-    delim = "\t", escape_double = FALSE, 
-    trim_ws = TRUE, skip = 13)
-
-head(test)
-
-testmap <- O2DataFiles %>%
-  map_dfr(~read_delim(., delim = "/t", escape_double = FALSE, 
-    trim_ws = TRUE, skip = 13))
-
-head(testmap)
-
-read_tsv_plus <- function(Flnm, HeaderRows){read_tsv(Flnm,  col_names = TRUE,  comment = Comment, skip = HeaderRows) %>%
-    mutate(filename = Flnm)}
-
-test2map <- O2DataFiles %>%
-  map_df(~read_tsv_plus(Flnm = ., HeaderRows = HeaderRows))
-
-head(test2map)
-
-O2Data <- O2DataFiles %>% 
-  purrr::map_df(~read_delim_plus(flnm = ., delimiter = Delimiter, fileencode = FileEncode, header = HeaderRows))
-
-
-
-%>%
-   select(
+O2Data <- O2DataFiles %>%
+  map_df(~read_delim_plus(flnm = ., delimiter = Delimiter, headerrows = HeaderRows, fileencode = FileEncode)) %>%
+  select(
     where(
       ~!all(is.na(.x)) #remove columns of all na
     )
   ) %>%
-    select(
+  select(
     where(
       ~!all(str_detect(.x, pattern = "---")) #remove columns containing only all "---"
     )
   ) %>%
-    select(-c(`(mbar)`, `(%)`,`('C)...15`,`Ch 1...18`,`Ch1...22`,`Ch1...26`)) %>%
+  select(-c(`(mbar)`, `(%)`,`('C)...15`,`Ch 1...18`,`Ch1...22`,`Ch1...26`)) %>%
   rename(Time_hms = `Time (HH:MM:SS)`,
          ETime_s = `Time (s)`,
          O2_umolL = `Ch1...5`,
          Temp_C = `Ch 1...9`)
+  
+head(O2Data)
+```
 
-
+#Generate columns from Filename
+```{r generate columns from Filename}
 O2Data <- O2Data %>%
-  mutate(filename = str_remove(string = filename, pattern = ".txt")) %>%
-  mutate(filename = str_remove(string = filename, pattern = "../RawData/Optode/")) %>%  
-  separate(filename, into = c("RunDate", "FileDate","FileTime", "Project", "FileID", "CultureID", "Ex_WL"), sep = "([\\/\\_\\_\\_\\_\\_])", remove = FALSE) %>%
+  mutate(Filename = str_remove(string = Filename, pattern = ".txt")) %>%
+  mutate(Filename = str_remove(string = Filename, pattern = "../Optode/")) %>%
+  mutate(Filename = str_remove(string = Filename, pattern = "Caloxy")) %>%
+  separate(Filename, into = c("Run", "FileDateTime", "Project", "FileID", "CultureID", "Ex_WL", "GrowthLight"), sep = "([\\/\\_\\.])", remove = FALSE) 
+
+head(O2Data)
+
+
+
+%>%
   mutate(FileTime = parse_date_time(as.character(FileTime), "hms")) %>%
   separate(FileTime, into = c("FileYear", "FileTime"), sep = "([ ])", remove = TRUE) %>%
   select(-c(FileYear))
 
-O2Data[1:5,]
+O2Data[1:5]
 ```
 
 ```{r prelimplot}
