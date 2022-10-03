@@ -138,9 +138,9 @@ unique(duplicated(SolisenseFiles))
 ```{r data read adds filename and cdate, warning=FALSE, message=FALSE, echo=FALSE}
 #design choice 2 file reading functions or add a filetype variable to a single function
 #stringsAsFactors =FALSE somewhere? 
-
-read.delim_plus <- function(flnm, file_encode, delimiter, header_rows){read.delim(flnm, fileEncoding = file_encode, sep = delimiter,  skip = header_rows, row.names = NULL) %>% mutate(filename = flnm, cdatetime = ymd_hms(file.info(flnm)$ctime))
-}
+# 
+# read.delim_plus <- function(flnm, file_encode, delimiter, header_rows){read.delim(flnm, fileEncoding = file_encode, sep = delimiter,  skip = header_rows, row.names = NULL) %>% mutate(filename = flnm, cdatetime = ymd_hms(file.info(flnm)$ctime))
+# }
 
 #a read function using tidyverse::read_delim that skips a fixed number of header rows, and adds columns to the dataframe containing the filename and the file creation date time.
 read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(flnm, delim = delimiter,  col_names = TRUE,  skip = headerrows, escape_double = FALSE,  locale = locale(encoding = fileencode), trim_ws = TRUE) %>%
@@ -177,12 +177,13 @@ SolFitsTrim <- SolFits %>%
   mutate(Filename = str_remove(string = Filename, pattern = ".csv"),
          Filename = str_remove(string = Filename, pattern = "../Solisense/"),
          Filename = str_remove(string = Filename, pattern = "_fit")) %>%
-  separate(Filename, into = c("SubProject", "Project", "RunDateTime", "exp", "CultureID", "Ex_WL", "Exp_Type",  "Refit"), sep = "([\\/\\_])", remove = FALSE) %>%
+  separate(Filename, into = c("SubProject", "Project", "RunDateTime", "exp", "CultureID", "Ex_WL", "Exp_Type"), sep = "([\\/\\_])", remove = FALSE) %>%
   mutate(RunDateTime = ymd_hm(RunDateTime), 
          TIME = as.character(TIME)) %>% #time-column may be read in as factor, and as.character changes it to numeric; using lubdridate::hms would only change the format to 13H 4M 2S but does not work later to merge into one DateTime-column
   rename(ObsDate = DATE,
          ObsTime = TIME,
-         FvFm = "Fv/Fm") %>%
+         FvFm = "Fv/Fm",
+         FvFo = "Fv/Fo") %>%
   mutate(Ex_WL = as.factor(as.numeric(Ex_WL))) %>%
   mutate(FvFm = as.numeric(as.character(FvFm)),
          nm445 = as.numeric(as.character(Light_1)),
@@ -299,7 +300,11 @@ SolFitsTrim2 <- SolFitsTrim %>%
          #ETRCtau2 = Sig_m2psii * Ctau2 * ActPARCorr_photonsm2s,
          ETRCtauav = Sig_m2psii * Ctauav * ActPARCorr_photonsm2s,
          #ETRqp = Sig_m2psii * qp * ActPARCorr_photonsm2s,
-         ETRqpOxbo = Sig_m2psii * qpOxbo * ActPARCorr_photonsm2s,
+         ETRqpOxbo = Sig_m2psii * qpOxbo * ActPARCorr_photonsm2s)
+         
+ head(SolFitsTrim2)
+ 
+ 
          #ETRGorbo = (1/TauAv[7])*((ActPARCorr*FvFm)/(ActPARCorr[7]*FvFm[7])) * us_s,
          TestTauAvSat = 1/TauAv[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)],
          ETRGorbo = (1/TauAv[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)])*((ActPARCorr_photonsm2s*FvFm)/(max(ActPARCorr_photonsm2s))*(FvFm[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)])) * us_s,
