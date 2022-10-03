@@ -26,6 +26,12 @@ This .Rmd Rworkbook imports data in simple .txt .tsv form exported from FireStin
 
 It tidies and organizes the data.
 
+```{r load libraries} 
+# libraries; Note check actual dependencies
+library(tidyverse)
+library(lubridate)
+```
+
 ## To-Do list:
 
 variable name is in two rows, need to find a way to make variable name in two rows into one row.
@@ -199,7 +205,7 @@ Delimiter <- "\t"
 
 #fixed 'Skip' is brittle and will fail if number of header rows varies across files
 HeaderRows = 13
-#Comment <- "#"
+Comment <- "#"
 
 #Set URL for MetaData
 MetaDataURL <- "https://docs.google.com/spreadsheets/d/1ZXpwR7Gfto-uRzVdXzMpQF4frbrvMLH_IyLqonFZRSw/edit#gid=0"
@@ -213,8 +219,6 @@ library(broom)
 library(googlesheets4)
 library(googledrive)
 
-#library(stringr)
-#library(dplyr)
 #library(knitr)
 #library(zoo)
 #library(tidyquant)
@@ -231,7 +235,8 @@ Colours_nm
 
 ```
 
-This chunk reads in the MetaData catalog from googlesheets 
+This chunk reads in the MetaData catalog from googlesheets
+MetaData for each culture was entered manually; including a serial SampleID (ex. SySl1001) for each sample, which is included in names of data files derived from that sample.
 ```{r load Catalog, now as a google sheet}
  gs4_deauth()
 # #deauthorizes access to googlesheet
@@ -291,7 +296,7 @@ read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(
 ../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt
 
 
-Reads in O2Data files one after another; skips the "notes" at the beginning of the data and begins to read each file after HeaderRows. Renames columns so there are no duplicates (.name_repair)
+Reads in O2Data files one after another; skips the header "notes" at the beginning of the data and begins to read each file after HeaderRows. Renames columns so there are no duplicates (.name_repair).
 
 There are multiple functions from baseR ('read.delim'), from Tidyverse ('read_delim') or from data.table ('fread') for reading in files; if one approach fails; try another.
 Pipe read files directly to cleaning steps; could do cleaning transforms within 'map_df' as well
