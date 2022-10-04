@@ -325,10 +325,13 @@ head(O2Data)
 
 #Generate columns from Filename
 ```{r generate columns from Filename}
+"../Optode/SySlCCACaloxy/202205181355_PICO_caloxy_SySl1246_535_LL.txt"
+"SySlCCACaloxy/202205181355_PICO_SySl1246_535_LL"
+
 O2Data <- O2Data %>%
   mutate(Filename = str_remove(string = Filename, pattern = "../Optode/"),
          Filename = str_remove(string = Filename, pattern = ".txt"),
-         Filename = str_remove(string = Filename, pattern = "caloxy")) %>%
+         Filename = str_remove(string = Filename, pattern = "caloxy_")) %>%
   separate(Filename, into = c("Run", "FileDateTime", "Project", "CultureID", "Ex_WL", "GrowthLight"), sep = "([\\/\\_\\.])", remove = FALSE) %>%
   mutate(FileDateTime = parse_date_time(as.character(FileDateTime), orders = "ymdHM")) %>%
   separate(FileDateTime, into = c("File_YMD", "File_HM"), sep = "([ ])", remove = FALSE)
