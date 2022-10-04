@@ -98,12 +98,12 @@ Improve this if we generalize the approach.
 This chunk reads in a MetaData catalog from googlesheets
 Is this necessary? Optode Data already merged with MetaData?
 ```{r load Catalog, now as a google sheet}
-gs4_deauth()
+# gs4_deauth()
+# 
+# MetaData <- 
+# read_sheet("https://docs.google.com/spreadsheets/d/1wik41fMOiiA1gxLGtU8y3zpkrY1rqdMqXqQZs__sf-E/edit?usp=sharing")
 
-MetaData <- 
-read_sheet("https://docs.google.com/spreadsheets/d/1wik41fMOiiA1gxLGtU8y3zpkrY1rqdMqXqQZs__sf-E/edit?usp=sharing")
 
-#%>%
 # sheet is read in by sheet ID, obtained from the URL of the sheet.
 # read_sheet has an annoying "feature" to set the type of columns it can't parse to a list.
 # ggplot/dplyr doesn't like working with a dataframe of lists.
@@ -134,7 +134,7 @@ Cuvette <- "TC"
 
 ```
 
-#ReFit FRRf data includes multiple run dates; filter to match selected O2 data
+#Filter FRRf data to match selected O2 data
 ```{r filter FRRfData}
 FRRfDataLight <- FRRfData %>%
   filter(!is.na(LR_s)) %>%
@@ -249,37 +249,33 @@ FRRfDataLight %>%
 
 ## Simple left_join, some times line up
 # Many blank rows after left join b/c most O2 rows do not have explicit FRRf row.  Possible problem if ObsTime gets out of sync b/t Optode & FRRf data captures
+
+This problem arises with SySl data; no alignment b/t O2Data & FRRfDataLight based upon ObsTime
+
+Solve using LR_s
 ```{r leftjoin}
 colnames(O2Data)
 colnames(FRRfDataLight)
 
 
-O2SlopeData <- left_join(x = O2Data, y = FRRfDataLight, by = c("ObsDate", "ObsTime", "CultureID", "Ex_WL", "TempCont"), suffix = c("O2", "FRRf"), keep = FALSE)
+O2SlopeData <- left_join(x = O2Data, y = FRRfDataLight, by = c("CultureID", "Ex_WL", "TempCont", "ObsDate","LR_s"), suffix = c("O2", "FRRf"), keep = FALSE)
 
-XXXX
-
-# %>%
-#   select(-c("RFID_User_Data":"Dur.Wat", "SNR_raw", "FP1", "nm445":"IRCorr")) 
-
-
-#%>%
-  #filter(LR_sO2 < 1080)  #202112130850_MURIS_caloxy_MaBe3729_AL590_Ex590_noTC.txt had an error, where the same time showed up twice 08:57:50 because of an optode lag; left_join only copied respective FRRf dark phase, but not AL-phase --> double NULL instead of 40, 0; fixed by altering time in original file by some microseconds to 08:57:49 and 08:57:50
-
-
+head(O2SlopeData)
 ```
 
 ```{r O2FRRfprelimplot}
 O2SlopeData %>%
   #filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = LR_sO2, y = O2_umolL, colour = Ex_WL)) +
-  geom_point(aes(x = LR_sO2, y = ActPARCorr), colour = "black") +
+  geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = ActPARCorr), colour = "black") +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   #xlim(0, 1080) +
   theme_bw()
 
 ```
+Problem if LR_s used for join; lose separate LR_sFRRf used for interpolations.
 
 Interpolate ActPARCorr estimates across entire time axis
 ```{r interpolate FRRf estimates}
@@ -290,9 +286,9 @@ Interpolate ActPARCorr estimates across entire time axis
 interpolate <- function(x){zoo::na.locf(x, na.rm = FALSE, fromLast = TRUE, type = "l", maxgap = Inf)}
 
 O2SlopeData <- O2SlopeData %>%
-  mutate(ActPARCorrinter = interpolate(ActPARCorr),
+  mutate(ActPARCorrinter = interpolate(ActPARCorr))
          #Dark1sinter = interpolate(Dark1s), 
-         LR_sFRRfinter = interpolate(LR_sFRRf), .after = Temp_C)
+         #LR_sFRRfinter = interpolate(LR_s), .after = Temp_C)
          
          #ActPARCorr_photonsm2sinter = interpolate(ActPARCorr_photonsm2s),
          #JVPSIIinter = interpolate(JVPSII_aLHIIminmax)
@@ -318,8 +314,8 @@ Check whether ActPARCorrinter worked properly
 ```{r O2FRRfprelimplot2}
 O2SlopeData %>%
   ggplot() +
-  geom_point(aes(x = LR_sO2, y = O2_umolL, colour = Ex_WL)) +
-  geom_point(aes(x = LR_sO2, y = ActPARCorrinter), colour = "black") +
+  geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = ActPARCorrinter), colour = "black") +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
@@ -332,14 +328,14 @@ O2SlopeData %>%
   #filter(CultureID != "MaBe3433" | Ex_WL != "590") %>%
   #filter(CultureID %in% c("MaBe3433", "MaBe3436")) %>%
   ggplot() +
-  geom_point(aes(x = LR_sO2, y = O2_umolL, colour = Ex_WL)) +
-  geom_point(aes(x = LR_sO2, y = ActPARCorrinter), colour = "black") +
+  geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = ActPARCorrinter), colour = "black") +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   theme_bw()
 
 ```
-
+XXXX 4 Oct XXXX
 Estimate O2 slopes over LR PAR step ranges
 Be careful with nesting!  Multiple steps at single ActPARCorrinter
 Filter out first 50 s of each ActPARCorrinter set to skip 'induction' phase.
