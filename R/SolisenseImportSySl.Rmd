@@ -199,7 +199,8 @@ SolFitsTrim <- SolFits %>%
          ) %>%
   rename(StartDateTimeSol = RunDateTime) %>%
   drop_na(StartDateTimeSol) %>%
-  mutate(ObsTime = hms(ObsTime)) %>%
+  mutate(ObsTime = hms(ObsTime),
+         ObsDate = ymd(ObsDate)) %>%
   mutate(ObsDateTime = ymd_hms(paste(ObsDate, ObsTime))) %>%
   relocate(ObsDateTime, .after = ObsTime) %>%
   relocate(CultureID, .before = ObsDate) 
@@ -207,6 +208,8 @@ SolFitsTrim <- SolFits %>%
 #for consistency add TempCont column
 SolFitsTrim <- SolFitsTrim %>%
   mutate(TempCont = "TC")
+
+head(SolFitsTrim)
 ```
 
 
