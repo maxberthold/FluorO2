@@ -347,7 +347,8 @@ O2Data <- O2Data %>%
 ```
 Fix column classes
 ```{r fix column classes}
-O2Data <- type_convert(O2Data) 
+O2Data <- type_convert(O2Data) %>%
+  mutate(Ex_WL = as.factor(Ex_WL))
 
 head(O2Data)
 ```
@@ -356,7 +357,7 @@ head(O2Data)
 ```{r prelimplot}
 O2Data %>%
   ggplot() +
-  geom_point(aes(x = ETime_s, y = O2_umolL, colour = as.factor(Ex_WL))) +
+  geom_point(aes(x = ETime_s, y = O2_umolL, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   coord_cartesian(xlim = c(0,1200)) +
