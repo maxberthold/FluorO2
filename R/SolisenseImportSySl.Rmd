@@ -164,6 +164,8 @@ SolFits <- SolisenseFiles %>%
   map_df(~read_delim_plus(flnm =., delimiter = Delimiter, headerrows = HeaderRows, fileencode = FileEncode))
 
 head(SolFits)
+colnames(SolFits)
+
 ```
 
 
@@ -173,10 +175,11 @@ head(SolFits)
 
 SolFitsTrim <- SolFits %>% 
   filter(!grepl("----", DATE)) %>% # remove rows with "----"
-  select(-c("RFID_User_Data", "Barcode_Data", "Lon", "Lat", "GPS_stat")) %>% # remove superfluous columns
-  mutate(Filename = str_remove(string = Filename, pattern = ".csv"),
-         Filename = str_remove(string = Filename, pattern = "../Solisense/"),
-         Filename = str_remove(string = Filename, pattern = "_fit")) %>%
+  select(-c("RFID_User_Data", "Barcode_Data", "Lon", "Lat", "GPS_stat", "...58")) %>% # remove superfluous columns
+  mutate(Filename = str_remove(string = Filename, pattern = "../Solisense/"),
+         Filename = str_remove(string = Filename, pattern = "_fit"),
+         Filename = str_remove(string = Filename, pattern = ".csv")
+         ) %>%
   separate(Filename, into = c("SubProject", "Project", "RunDateTime", "exp", "CultureID", "Ex_WL", "Exp_Type"), sep = "([\\/\\_])", remove = FALSE) %>%
   mutate(RunDateTime = ymd_hm(RunDateTime), 
          TIME = as.character(TIME)) %>% #time-column may be read in as factor, and as.character changes it to numeric; using lubdridate::hms would only change the format to 13H 4M 2S but does not work later to merge into one DateTime-column
@@ -186,12 +189,14 @@ SolFitsTrim <- SolFits %>%
          FvFo = "Fv/Fo") %>%
   mutate(Ex_WL = as.factor(as.numeric(Ex_WL))) %>%
   mutate(FvFm = as.numeric(as.character(FvFm)),
+         FvFo = as.numeric(as.character(FvFo)),
          nm445 = as.numeric(as.character(Light_1)),
          nm470 = as.numeric(as.character(Light_2)),
          nm505 = as.numeric(as.character(Light_3)),
          nm535 = as.numeric(as.character(Light_4)),
          nm590 = as.numeric(as.character(Light_5)),
-         IR = as.numeric(as.character(Light_6))) %>%
+         IR = as.numeric(as.character(Light_6))
+         ) %>%
   rename(StartDateTimeSol = RunDateTime) %>%
   drop_na(StartDateTimeSol) %>%
   mutate(ObsTime = hms(ObsTime)) %>%
@@ -235,7 +240,7 @@ SolFitsTrim <- SolFitsTrim %>%
 #add a column adding Dark1s based upon any step < 5 s
 #replace NA for first dark with nominal 181;  issue will be changing durations of light steps across each run
 SolFitsTrim <- SolFitsTrim %>%
-  group_by(CultureID, Ex_WL) %>%
+  group_by(Filename, CultureID, Ex_WL) %>%
   #mutate(Step_s = as.numeric(ObsDateTime - lag(ObsDateTime)), .after = ObsDateTime) %>%
   mutate(Step_s = replace_na(as.numeric(ObsDateTime - lag(ObsDateTime)), 181), .after = ObsDateTime) %>% 
   mutate(LR_s = as.numeric(ObsDateTime - ObsDateTime[1]), .after = Step_s) %>%
@@ -274,7 +279,7 @@ Oxborough & Baker 1997 for Fo'
 ```{r estimate parameters}
 #think about nest_by and map?
 SolFitsTrim2 <- SolFitsTrim %>%
-  group_by(CultureID, Ex_WL, TempCont) %>%
+  group_by(Filename, CultureID, Ex_WL, TempCont) %>%
   mutate(Fodark = Fo[1],
          Fmdark = Fm[1],
          Sigdark = Sig[1],
@@ -300,11 +305,7 @@ SolFitsTrim2 <- SolFitsTrim %>%
          #ETRCtau2 = Sig_m2psii * Ctau2 * ActPARCorr_photonsm2s,
          ETRCtauav = Sig_m2psii * Ctauav * ActPARCorr_photonsm2s,
          #ETRqp = Sig_m2psii * qp * ActPARCorr_photonsm2s,
-         ETRqpOxbo = Sig_m2psii * qpOxbo * ActPARCorr_photonsm2s)
-         
- head(SolFitsTrim2)
- 
- 
+         ETRqpOxbo = Sig_m2psii * qpOxbo * ActPARCorr_photonsm2s,
          #ETRGorbo = (1/TauAv[7])*((ActPARCorr*FvFm)/(ActPARCorr[7]*FvFm[7])) * us_s,
          TestTauAvSat = 1/TauAv[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)],
          ETRGorbo = (1/TauAv[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)])*((ActPARCorr_photonsm2s*FvFm)/(max(ActPARCorr_photonsm2s))*(FvFm[ActPARCorr_photonsm2s == max(ActPARCorr_photonsm2s)])) * us_s,
@@ -315,57 +316,49 @@ SolFitsTrim2 <- SolFitsTrim %>%
          JVPSII_ETRtauav_aLHII_Sig = ETRCtauav * aLHIIOxbomax/Sigmax,
          JVPSII_ETRqpOxbo_aLHII_Sig = ETRqpOxbo * aLHIIOxbomax/Sigmax) %>%
   ungroup()
-
+       
+ head(SolFitsTrim2)
 ```
 
 ```{r prelimplots2}
 SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = ActPARCorr, y = aLHIIOxbomax, colour = as.factor(TempCont))) +
-  #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
-  #scale_colour_manual(values = Colours_nm) +
+  geom_point(aes(x = ActPARCorr, y = aLHIIOxbomax, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
-  theme_bw()
+  theme(strip.text.y = element_text(size = 5, angle=0)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
 
 SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = ActPARCorr, y = ETRqpOxbo, colour = as.factor(TempCont))) +
-  geom_point(aes(x = ActPARCorr, y = ETRGorbo), shape = "cross") +
-  #scale_colour_manual(values = Colours_nm) +
+  geom_point(aes(x = ActPARCorr, y = ETRqpOxbo, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
-  theme_bw()
+  theme(strip.text.y = element_text(size = 5, angle=0)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
 
-
-# SolFitsTrim %>%
-#   filter(Dark1s == 0) %>%
-#   ggplot() +
-#   geom_point(aes(x = Ctau1, y = qp, colour = as.factor(TempCont))) +
-#   #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
-#   #scale_colour_manual(values = Colours_nm) +
-#   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
-#   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
-#   coord_fixed(xlim = c(0,1), ylim = c(0,1), ratio = 1) +
-#   theme_bw()
 
 SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = Ctauav, y = qpOxbo, colour = as.factor(TempCont))) +
-  #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
-  #scale_colour_manual(values = Colours_nm) +
+  geom_point(aes(x = Ctauav, y = qpOxbo, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
   coord_fixed(xlim = c(0,1), ylim = c(0,1), ratio = 1) +
-  theme_bw()
+  theme(strip.text.y = element_text(size = 5, angle=0)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
 
 SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = ActPARCorr, y = JVPSII_ETRtauav_FoSig, colour = as.factor(TempCont))) +
-  #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
-  #scale_colour_manual(values = Colours_nm) +
+  geom_point(aes(x = ActPARCorr, y = JVPSII_ETRtauav_FoSig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
 
@@ -373,43 +366,46 @@ SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = 
-         JVPSII_ETRqpOxbo_FoSig, y = JVPSII_ETRtauav_aLHII_Sig, colour = as.factor(TempCont))) +
-  #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
-  #scale_colour_manual(values = Colours_nm) +
+         JVPSII_ETRqpOxbo_FoSig, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
-  coord_fixed(ratio = 1) +
+  #coord_fixed(ratio = 1) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
-  theme_bw()
+  theme(strip.text.y = element_text(size = 5, angle=0)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
 
 SolFitsTrim2 %>%
   filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x =  JVPSII_ETRqpOxbo_FoSig, y = JVPSII_aLHIIOxbomax, colour = as.factor(TempCont))) +
-  #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
-  #scale_colour_manual(values = Colours_nm) +
+  geom_point(aes(x =  JVPSII_ETRqpOxbo_FoSig, y = JVPSII_aLHIIOxbomax, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
   #coord_fixed(ratio = 1) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
-  theme_bw()
+  theme(strip.text.y = element_text(size = 5, angle=0)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
 
   #ETRGorbo works well for blue light but appears to fail for 590 nm; possible issue with low FV/FM with PBsome excitation?
 
 SolFitsTrim2 %>%
-  #filter(Dark1s == 0) %>%
+  filter(Dark1s == 0) %>%
   ggplot() +
-  geom_point(aes(x = ETRCtauav, y = ETRGorbo, colour = as.factor(TempCont))) +
-  #geom_point(aes(x = ActPARCorr, y = aLHIIminmax), shape = "cross") +
-  #scale_colour_manual(values = Colours_nm) +
+  geom_point(aes(x = ETRCtauav, y = ETRGorbo, colour = Ex_WL)) +
+  scale_colour_manual(values = Colours_nm) +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
-  #coord_fixed(ratio = 1) +
+  coord_fixed(ratio = 1) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
-  theme_bw()
+  theme(strip.text.y = element_text(size = 5, angle=0)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
 
 ```
 
 
 ```{r save SolFitsTrim data}
-saveRDS(SolFitsTrim2, file.path(DataOut, paste(Project, RunDate, "SolFitsTrim.Rds", sep = "_"), fsep = .Platform$file.sep))
+saveRDS(SolFitsTrim2, file.path(DataOut, paste(Project, Run, "SolFitsTrim.Rds", sep = "_"), fsep = .Platform$file.sep))
 ```
 
 
