@@ -292,8 +292,9 @@ read_delim_plus <- function(flnm, delimiter, headerrows, fileencode){read_delim(
 
  
 ```
+
+
 "../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt"
-../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt
 
 
 Reads in O2Data files one after another; skips the header "notes" at the beginning of the data and begins to read each file after HeaderRows. Renames columns so there are no duplicates (.name_repair).
@@ -316,7 +317,7 @@ O2Data <- O2DataFiles %>%
   ) %>%
   select(-c(`(mbar)`, `(%)`,`('C)...15`,`Ch 1...18`,`Ch1...22`,`Ch1...26`)) %>%
   rename(Time_hms = `Time (HH:MM:SS)`,
-         ETime_s = `Time (s)`,
+         LR_s = `Time (s)`,
          O2_umolL = `Ch1...5`,
          Temp_C = `Ch 1...9`)
   
@@ -336,7 +337,7 @@ O2Data <- O2Data %>%
   mutate(FileDateTime = parse_date_time(as.character(FileDateTime), orders = "ymdHM")) %>%
   separate(FileDateTime, into = c("ObsDate", "ObsTime"), sep = "([ ])", remove = FALSE) %>%
   mutate(ObsDate = ymd(ObsDate),
-         ObsTime = hm(ObsTime))
+         ObsTime = hms(ObsTime))
 
 head(O2Data)
 
