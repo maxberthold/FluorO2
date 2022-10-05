@@ -173,7 +173,7 @@ O2Data <- O2Data %>%
 head(O2Data)
 ```
 
-```{r prelimplot}
+```{r prelimplot O2}
 O2Data %>%
   ggplot() +
   geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
@@ -183,7 +183,8 @@ O2Data %>%
   theme(strip.text.y = element_text(size = 5, angle=0)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
-
+```
+```{r prelimplots FRRf }
 FRRfDataLight %>%
   ggplot() +
   geom_point(aes(x = LR_s, y = ETRCtauav, colour = Ex_WL)) +
@@ -195,49 +196,18 @@ FRRfDataLight %>%
 
 FRRfDataLight %>%
   ggplot() +
-  geom_point(aes(x = LR_s, y = ETRqpOxbo, colour = Ex_WL)) +
-  scale_colour_manual(values = Colours_nm) +
+  geom_point(aes(x = LR_s, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL)) +  scale_colour_manual(values = Colours_nm) +
+  
   facet_grid(rows = vars(CultureID), cols = vars(Ex_WL)) +
   theme(strip.text.y = element_text(size = 5, angle=0)) +
   scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
   scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
 
-FRRfDataLight %>%
-  ggplot() +
-  geom_point(aes(x = LR_s, y = JVPSII_ETRtauav_FoSig, colour = Ex_WL)) +
-  scale_colour_manual(values = Colours_nm) +
-  facet_grid(rows = vars(CultureID), cols = vars(Ex_WL)) +
-  theme(strip.text.y = element_text(size = 5, angle=0)) +
-  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
-  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
-
-FRRfDataLight %>%
-  ggplot() +
-  geom_point(aes(x = LR_s, y = JVPSII_ETRqpOxbo_FoSig, colour = Ex_WL)) +
-  scale_colour_manual(values = Colours_nm) +
-  facet_grid(rows = vars(CultureID), cols = vars(Ex_WL)) +
-  theme(strip.text.y = element_text(size = 5, angle=0)) +
-  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
-  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
-
-FRRfDataLight %>%
-  ggplot() +
-  geom_point(aes(x = LR_s, y = JVPSII_ETRtauav_aLHII_Sig, colour = Ex_WL)) +
-  facet_grid(rows = vars(CultureID), cols = vars(Ex_WL)) +
-  theme(strip.text.y = element_text(size = 5, angle=0)) +
-  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
-  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
-
-FRRfDataLight %>%
-  ggplot() +
-  geom_point(aes(x = LR_s, y = JVPSII_ETRqpOxbo_aLHII_Sig, colour = Ex_WL)) +
-  facet_grid(rows = vars(CultureID), cols = vars(Ex_WL)) +
-  theme(strip.text.y = element_text(size = 5, angle=0)) +
-  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
-  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
 ```
 
-## Simple left_join, some times line up
+
+
+## Simple left_join, some times lines up
 # Many blank rows after left join b/c most O2 rows do not have explicit FRRf row.  Possible problem if ObsTime gets out of sync b/t Optode & FRRf data captures
 
 This problem arises with SySl data; no alignment b/t O2Data & FRRfDataLight based upon ObsTime
@@ -252,6 +222,11 @@ FRRf uses SubProject, O2 uses Run
 Include Project & Run in merge
 
 ObsTimeO2 seems incorrect; all NA
+
+Problem with ActPAR after join for
+Ex_WL = 445 & SySl1158, SySl1159, SySl1191, SySl1192 (0 only) (ok in SolisenseImportSySl.Rmd)
+ SySl1191 (0 only) (ok in SolisenseImportSySl.Rmd)
+ Ex_WL = 505 & SySl1189 (missing all data in SolisenseImportSySl.Rmd)
 ```{r leftjoin}
 colnames(O2Data)
 colnames(FRRfDataLight)
@@ -263,12 +238,11 @@ head(O2SlopeData)
 
 ```{r clean up columns}
 O2SlopeData <- O2SlopeData %>%
-  select(-c("PIF","LEDSel", "Tau1PQ","Alp2PQ","Tau2PQ","Alp3PQ",  "exp","Exp_Type","nm445", "nm470","nm505","nm535","nm590","IR"))
+  select(-c("PIF","LEDSel", "Tau1PQ","Alp2PQ","Tau2PQ","Alp3PQ", "TPQ_PSI", "exp", "nm445", "nm470","nm505","nm535","nm590","IR"))
 ```
 
-Problem with ActPAR for
-Ex_WL = 445 & SySl1158, SySl1159, SySl1191, SySl1192 (0 only)
-Ex_WL = 505 & SySl1189 (missing all), SySl1191 (0 only)
+
+ 
 ```{r O2FRRfprelimplot}
 O2SlopeData %>%
   ggplot() +
@@ -283,7 +257,29 @@ O2SlopeData %>%
   theme_bw()
 
 ```
+
+```{r remove missing data combinations}
+O2SlopeDataClean <- O2SlopeData %>%
+  filter(!(Ex_WL == 445 & CultureID %in% c("SySl1158", "SySl1159","SySl1191", "SySl1192")),
+         !(Ex_WL == 470 & CultureID %in% c("SySl1187")),
+         !(Ex_WL == 505 & CultureID %in% c("SySl1189","SySl1191")))
+
+O2SlopeDataClean %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = ActPARCorr), colour = "black") +
+  coord_cartesian(xlim = c(0, 1080)) +
+  scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
+  theme(strip.text.y = element_text(size = 5, angle=0)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
+  theme_bw()
+```
+
 Problem if LR_s used for join; lose separate LR_sFRRf used for interpolations.
+
+XXXX
 
 Interpolate ActPARCorr estimates across entire time axis
 ```{r interpolate FRRf estimates}
