@@ -358,7 +358,7 @@ head(O2Data)
 ```{r prelimplot}
 O2Data %>%
   ggplot() +
-  geom_point(aes(x = ETime_s, y = O2_umolL, colour = Ex_WL)) +
+  geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
   coord_cartesian(xlim = c(0,1200)) +
