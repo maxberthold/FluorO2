@@ -96,7 +96,7 @@ Improve this if we generalize the approach.
 
 
 This chunk reads in a MetaData catalog from googlesheets
-Is this necessary? Optode Data already merged with MetaData?
+Optode Data already merged with MetaData
 ```{r load Catalog, now as a google sheet}
 # gs4_deauth()
 # 
@@ -121,6 +121,7 @@ Is this necessary? Optode Data already merged with MetaData?
 #Run <- "SySlCCACaloxy"
 FRRfData <- readRDS(file = file.path(DataInFRRf, paste("FluorO2_", Run, "_SolFitsTrim.Rds", sep = "")))
 
+head(FRRfData)
 ```
 
 # Set Run Specific Variables for each set of O2 Data; TC/noTC, RunDateOxy, StrainID
@@ -160,10 +161,8 @@ head(O2Data)
 Remove missing rows, reconcile time formats
 ```{r remove missing rows}
 O2Data <- O2Data %>%
-  filter(!is.na(ETime_s)) %>%
-  filter(TempCont == Cuvette) %>%
-  rename(LR_s = ETime_s)
-
+  filter(!is.na(LR_s)) %>%
+  filter(TempCont == Cuvette)
 
 #%>%
   #filter(CultureID == StrainID) %>%
@@ -197,15 +196,6 @@ FRRfDataLight %>%
 FRRfDataLight %>%
   ggplot() +
   geom_point(aes(x = LR_s, y = ETRqpOxbo, colour = Ex_WL)) +
-  scale_colour_manual(values = Colours_nm) +
-  facet_grid(rows = vars(CultureID), cols = vars(Ex_WL)) +
-  theme(strip.text.y = element_text(size = 5, angle=0)) +
-  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
-  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
-
-FRRfDataLight %>%
-  ggplot() +
-  geom_point(aes(x = LR_s, y = ETRGorbo, colour = Ex_WL)) +
   scale_colour_manual(values = Colours_nm) +
   facet_grid(rows = vars(CultureID), cols = vars(Ex_WL)) +
   theme(strip.text.y = element_text(size = 5, angle=0)) +
@@ -253,25 +243,43 @@ FRRfDataLight %>%
 This problem arises with SySl data; no alignment b/t O2Data & FRRfDataLight based upon ObsTime
 
 Solve using LR_s
+
+Notes 5 Oct 2022
+LR_s appears to be calculated incorrectly; jumps from 0 to 550 s
+
+FRRf uses SubProject, O2 uses Run
+
+Include Project & Run in merge
+
+ObsTimeO2 seems incorrect; all NA
 ```{r leftjoin}
 colnames(O2Data)
 colnames(FRRfDataLight)
 
-
-O2SlopeData <- left_join(x = O2Data, y = FRRfDataLight, by = c("CultureID", "Ex_WL", "TempCont", "ObsDate","LR_s"), suffix = c("O2", "FRRf"), keep = FALSE)
+O2SlopeData <- left_join(x = O2Data, y = FRRfDataLight, by = c("Project", "Run", "CultureID", "Ex_WL", "TempCont", "ObsDate","LR_s"), suffix = c("O2", "FRRf"), keep = FALSE)
 
 head(O2SlopeData)
 ```
 
+```{r clean up columns}
+O2SlopeData <- O2SlopeData %>%
+  select(-c("PIF","LEDSel", "Tau1PQ","Alp2PQ","Tau2PQ","Alp3PQ",  "exp","Exp_Type","nm445", "nm470","nm505","nm535","nm590","IR"))
+```
+
+Problem with ActPAR for
+Ex_WL = 445 & SySl1158, SySl1159, SySl1191, SySl1192 (0 only)
+Ex_WL = 505 & SySl1189 (missing all), SySl1191 (0 only)
 ```{r O2FRRfprelimplot}
 O2SlopeData %>%
-  #filter(Dark1s == 0) %>%
   ggplot() +
   geom_point(aes(x = LR_s, y = O2_umolL, colour = Ex_WL)) +
   geom_point(aes(x = LR_s, y = ActPARCorr), colour = "black") +
+  coord_cartesian(xlim = c(0, 1080)) +
   scale_colour_manual(values = Colours_nm) +
-  facet_grid(rows = vars(Ex_WL), cols = vars(CultureID)) +
-  #xlim(0, 1080) +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
+  theme(strip.text.y = element_text(size = 5, angle=0)) +
+  scale_y_continuous(sec.axis = sec_axis(~ . , name = "CultureID", breaks = NULL, labels = NULL)) +
+  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Ex_WL", breaks = NULL, labels = NULL)) 
   theme_bw()
 
 ```
@@ -340,6 +348,7 @@ Estimate O2 slopes over LR PAR step ranges
 Be careful with nesting!  Multiple steps at single ActPARCorrinter
 Filter out first 50 s of each ActPARCorrinter set to skip 'induction' phase.
 Filter out last 5 s to avoid Dark1s = 1 rows
+
 ```{r O2slopes}
 induction_s = 50
 end_s = 175
@@ -349,9 +358,14 @@ end_s = 175
 # }
 
 O2Slopes <- O2SlopeData %>%
-  #nest(O2data = -c(Date, CultureID, Ex_WL, filenameO2, ActPARCorrinter, LR_sFRRfinter)) %>% 
-    nest(O2data = -c(Date, ActPARCorrinter, FilenameO2,CultureID, CultureID, CultureID, Ex_WL, GrowthLight, TempCont, ObsDate)) %>%
-  filter(!is.na(ActPARCorrinter)) %>%
+    nest(O2data = -c(Date, Run, ActPARCorrinter, FilenameO2,CultureID, CultureID, CultureID, Ex_WL, GrowthLight, TempCont, ObsDate)) %>%
+  filter(!is.na(ActPARCorrinter))
+
+head(O2Slopes)
+head(O2Slopes[[1,9]])
+
+
+%>%
   #nest(O2data = c(Date, AbsTime, LR_sO2, O2_umolL, Temp_C, ActPARCorrinter, filenameO2)) %>%
   mutate(O2lm = map(O2data,  possibly(~ lm(O2_umolL[induction_s:end_s] ~ as.numeric(AbsTime[induction_s:end_s]), data = .x), otherwise = NULL)),
          O2lm_tidy = map(O2lm, possibly(tidy, otherwise = NULL))) %>%
@@ -371,6 +385,8 @@ O2Slopes <- O2SlopeData %>%
 #Decide how to handle subtraction of dark O2 slopes to estimate gross O2 evln
 #mutate(O2evln_O2ls_ALT = (O2_umolLs - mean(O2_umolLs[1], O2_umolLs[5]))) %>%
  #- (mean(O2_umolLs[1],O2_umolLs[5])))*6.022e17
+
+
 ```
 
 ```{r O2slopeplots}
