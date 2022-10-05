@@ -350,7 +350,7 @@ end_s = 175
 
 O2Slopes <- O2SlopeData %>%
   #nest(O2data = -c(Date, CultureID, Ex_WL, filenameO2, ActPARCorrinter, LR_sFRRfinter)) %>% 
-    nest(O2data = -c(Date, ActPARCorrinter,LR_sFRRfinter, filenameO2,CultureID, FileTime, CultureID, FileTime, CultureID, AL_WL, Ex_WL, TempCont, ObsDate)) %>%
+    nest(O2data = -c(Date, ActPARCorrinter, FilenameO2,CultureID, CultureID, CultureID, Ex_WL, GrowthLight, TempCont, ObsDate)) %>%
   filter(!is.na(ActPARCorrinter)) %>%
   #nest(O2data = c(Date, AbsTime, LR_sO2, O2_umolL, Temp_C, ActPARCorrinter, filenameO2)) %>%
   mutate(O2lm = map(O2data,  possibly(~ lm(O2_umolL[induction_s:end_s] ~ as.numeric(AbsTime[induction_s:end_s]), data = .x), otherwise = NULL)),
