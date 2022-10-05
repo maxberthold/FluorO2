@@ -180,7 +180,7 @@ SolFitsTrim <- SolFits %>%
          Filename = str_remove(string = Filename, pattern = "_fit"),
          Filename = str_remove(string = Filename, pattern = ".csv")
          ) %>%
-  separate(Filename, into = c("SubProject", "Project", "RunDateTime", "exp", "CultureID", "Ex_WL", "Exp_Type"), sep = "([\\/\\_])", remove = FALSE) %>%
+  separate(Filename, into = c("Run", "Project", "RunDateTime", "exp", "CultureID", "Ex_WL", "Exp_Type"), sep = "([\\/\\_])", remove = FALSE) %>%
   mutate(RunDateTime = ymd_hm(RunDateTime), 
          TIME = as.character(TIME)) %>% #time-column may be read in as factor, and as.character changes it to numeric; using lubdridate::hms would only change the format to 13H 4M 2S but does not work later to merge into one DateTime-column
   rename(ObsDate = DATE,
@@ -232,9 +232,11 @@ SolFitsTrim <- SolFitsTrim |>
           IRCorr = case_when(TempCont == "TC" ~ IR * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "PwrIR_uE" & ActPARCrossCal$Models == "DCWaterJacketlm_tidy"],
                                  TempCont == "noTC" ~ IR * ActPARCrossCal$Slope[ActPARCrossCal$DCLamp == "PwrIR_uE" & ActPARCrossCal$Models == "DCCuvettelm_tidy"]))
 
+head(SolFitsTrim)
+
 
 SolFitsTrim <- SolFitsTrim %>%
-  mutate(across(.cols = c(Light_1:ETR), .fns = as.numeric)) %>%
+  mutate(across(.cols = c(Light_1:QBP_Size), .fns = as.numeric)) %>%
   mutate(ActPAR = nm445 + nm470 + nm505 + nm535 + nm590 + IR) |>
   mutate(ActPARCorr = nm445Corr + nm470Corr + nm505Corr + nm535Corr + nm590Corr + IRCorr)#better ways to do this?
 
@@ -243,7 +245,7 @@ SolFitsTrim <- SolFitsTrim %>%
 #add a column adding Dark1s based upon any step < 5 s
 #replace NA for first dark with nominal 181;  issue will be changing durations of light steps across each run
 SolFitsTrim <- SolFitsTrim %>%
-  group_by(Filename, CultureID, Ex_WL) %>%
+  group_by(Filename, Run, Project, CultureID, Ex_WL) %>%
   #mutate(Step_s = as.numeric(ObsDateTime - lag(ObsDateTime)), .after = ObsDateTime) %>%
   mutate(Step_s = replace_na(as.numeric(ObsDateTime - lag(ObsDateTime)), 181), .after = ObsDateTime) %>% 
   mutate(LR_s = as.numeric(ObsDateTime - ObsDateTime[1]), .after = Step_s) %>%
@@ -255,7 +257,13 @@ SolFitsTrim <- SolFitsTrim %>%
 #Figure out how to re-match Dark1s to appropriate light steps
 
 ```
-
+Problem with ActPAR for
+Ex_WL = 445 & SySl1158, SySl1159, SySl1191, SySl1192 (0 only)
+Ex_WL = 505 & SySl1189 (missing all), SySl1191 (0 only)
+```{r}
+# test <- SolFitsTrim %>%
+#   filter(Ex_WL == "505" & CultureID == "SySl1191")
+```
 
 
 ```{r prelimplots}
@@ -264,6 +272,15 @@ SolFitsTrim %>%
   filter(Tau2QA < 20000) %>%
   ggplot() +
   geom_point(aes(x = ActPARCorr, y = Tau2QA, colour = as.factor(TempCont), size = LR_s)) +
+  #scale_colour_manual(values = Colours_nm) +
+  facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
+  theme_bw()
+
+SolFitsTrim %>%
+  filter(Dark1s == 0) %>%
+  filter(Tau2QA < 20000) %>%
+  ggplot() +
+  geom_point(aes(x = LR_s, y = Tau2QA, colour = as.factor(TempCont), size = LR_s)) +
   #scale_colour_manual(values = Colours_nm) +
   facet_grid(cols = vars(Ex_WL), rows = vars(CultureID)) +
   theme_bw()
@@ -282,7 +299,7 @@ Oxborough & Baker 1997 for Fo'
 ```{r estimate parameters}
 #think about nest_by and map?
 SolFitsTrim2 <- SolFitsTrim %>%
-  group_by(Filename, CultureID, Ex_WL, TempCont) %>%
+  group_by(Filename, Run, Project, CultureID, Ex_WL) %>%
   mutate(Fodark = Fo[1],
          Fmdark = Fm[1],
          Sigdark = Sig[1],
