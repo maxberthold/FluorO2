@@ -1,0 +1,185 @@
+---
+title: "O2ImportSingleFileTutorial"
+author:
+
+- Douglas A. Campbell
+- Maximilian Berthold
+- Laurel Genge
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+    keep_md: yes
+    fig_caption: yes
+    toc: TRUE
+    toc_float: TRUE
+csl: plos-one.csl
+---
+
+# Introduction
+We use an optode to measure [O2] µmol l-1 in suspensions of phytoplankton.
+Changes in [O2] reflect (hopefully) oxygen evolution or oxygen consumption by the cell suspension.
+
+# Materials and Methods
+
+This .Rmd Rworkbook imports data in simple .txt .tsv form exported from FireSting optodes based upon project specific values for variables set by the user.
+
+It tidies and organizes the data.
+
+```{r load libraries} 
+# libraries; Note check actual dependencies
+library(tidyverse)
+library(lubridate)
+```
+
+## To-Do list:
+
+variable name is in two rows, need to find a way to make variable name in two rows into one row.
+Need to match the tube number from file name with Ch1O2 etc... 
+Need to match each run with date from catalog
+create preiminary graphs
+
+## Priority List
+-single data file import for O2
+-multi-file batch data import (may not be fully feasible given we need match multiple files together in some cases)
+-O2 preliminary plots
+-merge O2 plots as over-lays of growth plots (time axis may be tricky but I think I know how)
+
+## First Try Import Dialog Under 'Environment' to import a single file into a dataframe.
+
+File delimiter is '.tsv' b/c the instrument software is from Europe.
+
+```{r paste code from Import dialog}
+
+library(readr)
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+
+#raw paste fails b/c need to change file path
+
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+```
+
+## Issues with raw imported file:
+
+-all 'columns' converted to 'character' type because they contain more than one type of data
+
+-~13 rows of 'Header' or 'Meta' data rows at top of file are incorrectly included as 'data'
+
+-Many variable names are 'non-syntactical' for R.
+  Variable names for R need to start with a letter, and must only include letters, numeral or '_'.
+  
+-Some variable values  may cause problems later.
+  Variable values for R should only include letters, or numerals, or letters + numerals + '_'
+  In a DataFrame all values in a column must be of the same 'class'; all numeric; all character; all logical; all factor
+  In a DataFrame all columns must be of the same length.
+  (Technical detour:
+A DataFrame is a 'list' of named 'atomic vectors', with each vector the same length.  The names of the vectors are the variable names; the elements of the vectors are the aligned rows.)
+  
+-'Variable Names' are present on multiple rows
+-Separate variables are concatenated into single columns b/c of issues with 'Variable Names'
+
+So, try again, setting 'skip' value for number of rows to jump over.
+Setting a fixed number of rows to jump over is 'brittle', and will fail if a given file had a slightly different 'header' structure.
+
+```{r import dialog paste, retry}
+#library(readr)
+X202204061316_PICO_caloxy_SySl1156_445_LL <- read_delim("../Optode/SySlCCACaloxy/202204061316_PICO_caloxy_SySl1156_445_LL.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE, skip = 13)
+View(X202204061316_PICO_caloxy_SySl1156_445_LL)
+
+colnames(X202204061316_PICO_caloxy_SySl1156_445_LL)
+
+```
+
+Now we have:
+-multiple columns in which all values are 'NA'
+-multiple columns in which all values are '---'
+-multiple columns with non-syntactical names
+
+There is no clear means to solve these problems interactively through the 'Import' dialog.
+
+An Approach:
+-Find code to identify and remove columns which contain only 'NA' or only '---'
+to simplify our work
+  That may cause problems if different files for later import have different 'empty' columns
+  
+-Re-name remaining columns with syntactical variable names
+  That may cause problems if different files for later import have different column names or orders
+
+```{r remove columns containing only 'NA'}
+#Remove columns which are all 'NA'
+OptodeTest <- X202204061316_PICO_caloxy_SySl1156_445_LL %>%
+  select(
+    where(
+      ~!all(is.na(.x)) #remove columns of all na
+    )
+  )
+```
+
+```{r remove columns containing only ---}
+#https://stackoverflow.com/questions/41815039/remove-columns-that-contain-a-specific-word
+#remove columns which only contain value '---'
+OptodeTest2 <- OptodeTest %>%
+  select(
+    where(
+      ~!all(str_detect(.x, pattern = "---")) #remove columns containing only all "---"
+    )
+  )
+
+colnames(OptodeTest2)
+```
+
+```{r rename non-syntactical variable names}
+
+#CampbellCase_unit variable naming convention followed; following a convention makes variable naming easier and more consistent.
+
+#Remove superfluous columns from working dataframe; be careful!
+#Renaming involves knowledge of what data is actually present to give sensible names
+#Enclose problematic character strings in `` so R does not attempt to interpret strings as code etc.
+
+OptodeTest3 <- OptodeTest2 %>%
+  select(-c(`(mbar)`, `(%)`,`('C)...15`,`Ch 1...18`,`Ch1...22`,`Ch1...26`)) %>%
+  rename(Time_hms = `Time (HH:MM:SS)`,
+         ETime_s = `Time (s)`,
+         O2_umolL = `Ch1...5`,
+         Temp_C = `Ch 1...9`)
+
+head(OptodeTest3)
+```
+
+Reality Therapy Plot
+```{r reality therapy plot}
+OptodeTest3 %>%
+  ggplot() +
+  geom_point(aes(x = ETime_s, y = O2_umolL)) +
+  theme_bw()
+
+OptodeTest3 %>%
+  ggplot() +
+  geom_point(aes(x = ETime_s, y = Temp_C)) +
+  theme_bw()
+```
+
+We have code to import and tidy a single file from the PyroOxyLog Oxygen Optode monitoring system.
+
+We could save the tidied DataFrame as a .csv for use elsewhere, or as an .Rds file for re-use within R.
+
+```{r save OptodeTest data}
+write_csv(x = OptodeTest3, file = file.path("OptodeTest3.csv", fsep = .Platform$file.sep))
+
+#note slightly different syntax for saveRDS
+saveRDS(OptodeTest3, file = file.path("OptodeTest3.Rds", fsep = .Platform$file.sep))
+```
+
+But, we have thousands of such files with ~~identical structures~~, containing data from different runs.
+
+Could we implement a bulk import and assembly of the data from multiple files into a common dataframe?
+
+
